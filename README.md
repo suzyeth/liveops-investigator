@@ -2,7 +2,7 @@
 
 **Investigate a game revenue drop with queryable evidence, bounded model advice, and memory that is checked against new facts.**
 
-Local prototype for Open Agent Hackathon 2026. Suggested track: **The Agent That Can Explain Why**. This repository preparation does not publish or submit the project.
+Local prototype for Open Agent Hackathon 2026, track **The Agent That Can Explain Why**.
 
 ## What it does
 
@@ -104,8 +104,19 @@ Configuration changes can coincide with conversion changes without causing them.
 
 Legacy single-case code remains available through `npm run demo:legacy`.
 
-## Attribution and privacy
+## Sponsor technology
 
-H-MEM source is from [Meterless/Meterless](https://github.com/Meterless/Meterless), commit `1742dec56a66e58eef9dda2d2b865823758ca8cd`; its license is preserved in `vendor/hmem/LICENSE`. Zetaris and Nightshift are external products and are not redistributed here. No additional license grant is made for original project code in this preparation.
+- **Zetaris** is the data layer. Every piece of evidence in the report is a SQL statement executed through the Zetaris web API with login authentication, and the report shows each statement, its returned rows, and its timing. The game data is inline SQL fixtures, not a connected production source.
+- **Meterless Nightshift** is the AI provider. The workflow calls its local OpenAI-compatible endpoint with the `meterless/local` routing mode for a constrained investigation-priority suggestion.
+- **Meterless H-MEM** is the memory engine. Each case stores attributed evidence, and the next case reopens the store from disk to choose its query order before fresh evidence is checked.
+- **NVIDIA:** the local model, Llama 3.2 1B Instruct, runs under Nightshift on an NVIDIA RTX 4060 Laptop GPU through CUDA. NVIDIA Nemotron is not used.
+- **Cursor** was not used.
+- **What is distinctive:** memory changes where the investigation looks first, but it is never accepted as the answer. Case two follows the remembered payment lead, finds it contradicted by fresh evidence, and moves to the offer change instead.
 
-Local credentials, private notes, runtime memory, generated reports, dependencies, and installers are excluded from Git. Do not upload local `.env` files or registry credentials. Publishing the repository and submitting the competition entry are separate actions that have not been performed.
+Pre-existing components: the vendored H-MEM reference implementation. The first project commit is dated 2026-10-26, inside the build window.
+
+## License and attribution
+
+Original project code is released under the MIT License; see `LICENSE`. H-MEM source is from [Meterless/Meterless](https://github.com/Meterless/Meterless), commit `1742dec56a66e58eef9dda2d2b865823758ca8cd`, path `engines/hmem/reference/src`; it remains under the Apache License 2.0 in `vendor/hmem/LICENSE`. Zetaris and Nightshift are external products and are not redistributed here.
+
+Local credentials, private notes, runtime memory, generated reports, dependencies, and installers are excluded from Git. Do not upload local `.env` files or registry credentials.
