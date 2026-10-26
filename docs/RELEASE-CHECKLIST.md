@@ -19,8 +19,8 @@ Hard deadline: **2026-10-27 23:45 UTC** (official event page, Open Agent Hackath
 
 ## Submission requirements (official rules, section 6)
 
-- [ ] Demo video, 1–4 minutes, showing the workflow and the Zetaris and Meterless integration
-- [ ] Slide deck: problem and users, solution, workflow, stack, sponsor technology use, product visuals, future work
+- [x] Demo video produced (2:45, from a real run; local file reports/submission/liveops-demo.mp4, not uploaded)
+- [x] Slide deck produced (12 slides covering every item in rule 6.2; export to PDF or PPTX for upload)
 - [x] GitHub repository link: https://github.com/suzyeth/liveops-investigator
 - [ ] Integration explanation (README "Sponsor technology" section can be pasted)
 - [ ] Declare the vendored H-MEM reference implementation as a pre-existing component

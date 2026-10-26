@@ -1,60 +1,51 @@
-# Four-minute demo script
+# Demo video script
 
-Target final length: **3:45–3:55**, never over 4:00. Read at approximately 120–135 words per minute and use the remaining time for on-screen evidence. This is a recording script, not a completed video. Rehearse before recording. Record only the app/report and terminal, not account pages or environment files.
+Final length: **2:45** (limit 4:00). The submitted video was assembled from artifacts of a real run (run `2026-10-26T22-15-09-147Z`): the captured console log, screenshots of the generated report, and values from the report JSON. Narration is synthesized English speech. Data is explicitly synthetic; every query ran through real local Zetaris, Meterless Nightshift, and Meterless H-MEM.
 
-## 0:00–0:25 — Problem and promise
+## 1. Problem and promise (0:00)
 
-**Screen:** report title and case-one overview.
+**Screen:** title card.
 
-**Narration:**
-“More players, less revenue. For a game team, that is a signal to investigate—not a reason to guess. LiveOps Investigator connects Zetaris, Nightshift, and H-MEM to turn that signal into a traceable investigation. Everything you see uses explicitly synthetic game data, queried through real local services.”
+“More players, less revenue. For a game team, that is a signal to investigate, not a reason to guess. LiveOps Investigator connects Zetaris, Meterless Nightshift, and Meterless H-MEM to turn that signal into a traceable investigation. The game data is explicitly synthetic, but every query runs through real local services.”
 
-## 0:25–0:55 — Start a real run
+## 2. A real run (0:22)
 
-**Screen:** double-click Run-Demo.cmd; show actual terminal progress. Allow the report to open. If services are slow, cut waiting time transparently; do not substitute a fabricated run.
+**Screen:** console output of `npm run demo`, with English notes beside the Chinese case titles.
 
-**Narration:**
-“This launcher runs two cases. Zetaris queries the overview, player cohorts, payment funnel, and event configuration. The application checks that the counts agree. Nightshift returns a constrained suggestion about investigation priorities. H-MEM stores attributed evidence and recalls it in the next case. The report is generated only after the workflow succeeds.”
+“One command runs two cases. Zetaris queries the overview, the player cohorts, the payment funnel, and the event configuration, and the code checks that every count reconciles. H-MEM recalls earlier evidence. Nightshift, running a small local model on an NVIDIA GPU, returns a fenced suggestion. In this run the model broke format once, so the agent retried. The report is written only after both cases succeed.”
 
-## 0:55–1:35 — Case one: check the payment hypothesis
+## 3. Case one (0:51)
 
-**Screen:** case-one metrics, funnel table, then expand checkout SQL and returned rows.
+**Screen:** case-one section of the generated report, with English captions.
 
-**Narration:**
-“In the first case, participation rises from one thousand to fifteen hundred, but revenue falls from one thousand to nine hundred. The payment funnel reveals a more specific symptom: payment success drops from eighty to sixty percent. Event configuration has not changed. That supports investigating the payment stage, but it does not identify the underlying fault. Error logs and device segments would be the next evidence to collect. Here are the actual SQL and returned rows behind that finding.”
+“In case one, participation rises from one thousand to fifteen hundred, but revenue falls from one thousand to nine hundred. The payment funnel shows a sharper symptom: payment success drops from eighty to sixty percent, while the event configuration is unchanged. That supports investigating the payment stage, but it does not name the fault. Error logs and device segments would come next.”
 
-## 1:35–2:20 — Case two: memory helps, but does not decide the answer
+## 4. Audit trail (1:15)
 
-**Screen:** case-two baseline versus actual order; expand prior evidence source; show payment result.
+**Screen:** the checkout query, its returned rows and timing, from the report JSON.
 
-**Narration:**
-“The second case starts with a similar revenue decline. It reopens H-MEM from disk and recalls the earlier payment incident. Without memory, our explicit baseline checks configuration first. With that historical evidence, it checks payment first. This is a transparent routing rule, not a claim that the model independently planned the investigation. Crucially, the new payment-success rate remains eighty percent. The workflow does not copy the previous diagnosis. It checks both hypotheses against current evidence.”
+“Every finding links back to the exact SQL statement Zetaris executed, the rows it returned, and how long it took. Here, payment successes must equal the payers in the overview, or the run fails.”
 
-## 2:20–3:00 — A different lead
+## 5. Case two: memory recalled (1:29)
 
-**Screen:** case-two funnel and reward comparison, then expand configuration SQL.
+**Screen:** case-two section of the generated report, with English captions.
 
-**Narration:**
-“This time, fewer shop visitors attempt a purchase, while reward units fall from one hundred to sixty. That gives the team a different lead: investigate the offer change. It is still not causal proof. A controlled comparison would be needed before attributing the revenue decline to the reward change. Memory has helped choose where to look, while fresh evidence has prevented an outdated conclusion.”
+“Case two starts with a similar revenue drop. The agent reopens H-MEM from disk and recalls case one, so it checks payment first instead of the default order. But fresh evidence says payment success is still eighty percent. The earlier diagnosis is not copied.”
 
-## 3:00–3:35 — Boundaries and reproducibility
+## 6. A different lead (1:46)
 
-**Screen:** model suggestion, memory persistence result, README commands and tests.
+**Screen:** side-by-side comparison of both cases.
 
-**Narration:**
-“Numerical conclusions come from validated calculations. Nightshift provides bounded advice, and generated hypotheses are not stored as facts. Both checks always run, so we do not claim a query-count reduction. The fixtures, source, thirteen tests, and setup instructions make the demonstration reproducible with your own local services. Missing or inconsistent evidence fails the run rather than silently producing a successful diagnosis.”
+“Instead, fewer shop visitors try to buy, and reward units fell from one hundred to sixty. That points to the offer change. It is still a lead, not proof, and a controlled comparison would confirm it. Memory chose where to look. Fresh evidence decided what was true.”
 
-## 3:35–3:55 — Close
+## 7. Sponsor technology and boundaries (2:03)
 
-**Screen:** report overview; stop by 3:55.
+**Screen:** four cards for Zetaris, Nightshift, H-MEM, and validated code.
 
-**Narration:**
-“LiveOps Investigator is a small, inspectable prototype: query evidence, test a hypothesis, remember what was observed, and recheck that memory when the situation changes. The next step is connecting external game telemetry and validating these investigation patterns across more incidents.”
+“Zetaris is the data layer for every number. Nightshift gives bounded advice that never writes SQL or states numbers. H-MEM stores sourced evidence across cases. Numerical conclusions come only from validated code, thirteen automated tests cover it, and missing or inconsistent evidence fails the run instead of producing a confident answer.”
 
-## Recording notes
+## 8. Close (2:26)
 
-- Start services and run one rehearsal first; verify all report sections are visible.
-- Keep the SQL panels readable; avoid displaying full unrelated desktop windows.
-- English narration maps to the current bilingual/Chinese report; an English report would improve accessibility but is not implemented in this packaging step.
-- Do not display `.env.local`, registry login commands, local account pages, or private deployment notes.
-- Confirm the exported duration is at most 4 minutes before uploading. No recording or upload has been performed.
+**Screen:** closing card with the repository URL.
+
+“LiveOps Investigator is a small, inspectable prototype: query evidence, test a hypothesis, remember what was observed, and recheck that memory when the situation changes. Next, we connect real game telemetry through Zetaris. The code is open source on GitHub.”
