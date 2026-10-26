@@ -42,7 +42,7 @@ Target final length: **3:45–3:55**, never over 4:00. Read at approximately 120
 **Screen:** model suggestion, memory persistence result, README commands and tests.
 
 **Narration:**
-“Numerical conclusions come from validated calculations. Nightshift provides bounded advice, and generated hypotheses are not stored as facts. Both checks always run, so we do not claim a query-count reduction. The fixtures, source, twelve tests, and setup instructions make the demonstration reproducible with your own local services. Missing or inconsistent evidence fails the run rather than silently producing a successful diagnosis.”
+“Numerical conclusions come from validated calculations. Nightshift provides bounded advice, and generated hypotheses are not stored as facts. Both checks always run, so we do not claim a query-count reduction. The fixtures, source, thirteen tests, and setup instructions make the demonstration reproducible with your own local services. Missing or inconsistent evidence fails the run rather than silently producing a successful diagnosis.”
 
 ## 3:35–3:55 — Close
 

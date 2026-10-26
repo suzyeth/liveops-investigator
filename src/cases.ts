@@ -44,4 +44,9 @@ export function evaluate(funnel:any[],config:any[],overview:any){
  offer:configChanged?'发现配置变更：需通过对照实验验证其影响':'配置未改变：不支持配置变更假设',
  rewardBefore:cb.reward_units,rewardAfter:ca.reward_units};
 }
+// The model may only return the two allowed IDs, in some order; anything else is rejected.
+export function parsePriorities(text:string):string[]|null{
+ const match=text.match(/\[\s*"(checkout|offer)"\s*,\s*"(checkout|offer)"\s*\]/);
+ return match&&match[1]!==match[2]?[match[1],match[2]]:null;
+}
 export function plan(prior:any[]){return prior.some(m=>m.tags?.includes('payment-drop'))?['checkout','offer']:['offer','checkout'];}

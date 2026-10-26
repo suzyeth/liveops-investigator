@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import {HMEM} from '../vendor/hmem/src/index.ts';
 import {loadConfig,zetarisQuery,nightshiftChat} from './providers.ts';
 import {diagnose,reconcileCohorts} from './investigation.ts';
-import {cases,sqlFor,evaluate,plan} from './cases.ts';
+import {cases,sqlFor,evaluate,plan,parsePriorities} from './cases.ts';
 import {renderWorkflow} from './workflow-report.ts';
 loadConfig();
 const run=new Date().toISOString().replace(/[:.]/g,'-');
@@ -25,9 +25,12 @@ try{
   const recalled=memory.query('game revenue payment conversion investigation',{threshold:0.1,topN:3});
   const prior=recalled.memories.map(m=>m.memory),order=plan(prior),data:any={};
   console.log(`[H-MEM] ${prior.length} prior records; plan ${order.join(' → ')}`);
-  const routing=await nightshiftChat(`Return ONLY one JSON array ["checkout","offer"] or ["offer","checkout"]. Choose an investigation priority for a game revenue decline. Historical evidence: ${recalled.context||'No prior evidence'}. Both checks will run; history is not proof for this incident.`);
-  const match=routing.content.match(/\[\s*"(checkout|offer)"\s*,\s*"(checkout|offer)"\s*\]/);
-  if(!match||match[1]===match[2])throw Error('Nightshift returned invalid investigation priorities');
+  const prompt=`Return ONLY one JSON array ["checkout","offer"] or ["offer","checkout"]. Choose an investigation priority for a game revenue decline. Historical evidence: ${recalled.context||'No prior evidence'}. Both checks will run; history is not proof for this incident.`;
+  // Small local models sometimes break format; retry, and keep every raw reply for the audit trail.
+  const attempts:string[]=[];let routing:any,suggestion:string[]|null=null;
+  for(let i=0;i<3&&!suggestion;i++){routing=await nightshiftChat(prompt);attempts.push(routing.content);suggestion=parsePriorities(routing.content);}
+  if(!suggestion)throw Error(`Nightshift returned invalid investigation priorities after ${attempts.length} attempts`);
+  console.log(`[Nightshift] suggestion ${suggestion.join(' → ')} (attempt ${attempts.length})`);
   // Memory routing is deterministic and auditable; model advice does not skip evidence checks.
   for(const step of order)data[step]=await query(step);
   const verdict=evaluate(data.checkout,data.offer,overview);
@@ -35,7 +38,7 @@ try{
   const stored=memory.add({content,source:`synthetic:${c.id}:reports/${run}.json`,type:'factual',layer:'working',confidence:1,tags:verdict.paymentDrop?['payment-drop']:['payment-healthy'],provenance:{origin:'document',learnedAt:Date.now(),label:'Zetaris funnel/config evidence',refs:[`reports/${run}.json`]}});
   const persisted=new HMEM({persistDir:dir}).query('game revenue payment conversion investigation',{threshold:0.1,topN:5}).memories.some(m=>m.memory.id===stored.id);
   if(!persisted)throw Error('Memory reload verification failed');
-  results.push({id:c.id,title:c.title,overview,trace,verdict,order,baseline:plan([]),prior:prior.map(m=>({id:m.id,source:m.source,content:m.content})),model:{name:routing.model,suggestion:JSON.parse(match[0])},storedId:stored.id,persisted});
+  results.push({id:c.id,title:c.title,overview,trace,verdict,order,baseline:plan([]),prior:prior.map(m=>({id:m.id,source:m.source,content:m.content})),model:{name:routing.model,suggestion,attempts},storedId:stored.id,persisted});
  }
  const report={run,status:'complete',results};
  fs.writeFileSync(`reports/${run}.json`,JSON.stringify(report,null,2));

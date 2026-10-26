@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {cases,evaluate,plan} from './cases.ts';
+import {cases,evaluate,plan,parsePriorities} from './cases.ts';
 import {diagnose} from './investigation.ts';
 function evidence(c:any){return {overview:diagnose([c.before,c.after].map((x:any,i:number)=>({period:i?'after':'before',participants:x[0],payers:x[1],revenue:x[2]}))),funnel:c.funnel.map((x:any,i:number)=>({period:i?'after':'before',shop_views:x[0],attempts:x[1],successes:x[2]})),config:c.config.map((x:any,i:number)=>({period:i?'after':'before',version:x[0],price:x[1],reward_units:x[2]}))};}
 test('case one supports payment issue; case two rejects remembered payment issue',()=>{
@@ -32,4 +32,9 @@ test('missing or blank config version fails instead of reading as unchanged',()=
   const e=evidence(cases[0]);e.config=e.config.map((r:any)=>({...r,version}));
   assert.throws(()=>evaluate(e.funnel,e.config,e.overview),/Invalid config/);
  }
+});
+test('model priorities must be one valid ordered pair; anything else is rejected',()=>{
+ assert.deepEqual(parsePriorities('```json\n["offer", "checkout"]\n```'),['offer','checkout']);
+ assert.deepEqual(parsePriorities('["checkout","offer"]'),['checkout','offer']);
+ for(const bad of ['checkout, offer','["checkout","checkout"]','["refund","offer"]','',"['checkout','offer']"])assert.equal(parsePriorities(bad),null);
 });

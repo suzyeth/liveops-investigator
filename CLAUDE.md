@@ -48,7 +48,8 @@ Key design facts that span files:
 
 ## Known gaps (found in the 2026-10-26 review; not yet fixed)
 
-- The Nightshift prompt carries no case numbers and its first example literal is `["checkout","offer"]`; the regex takes the first match, so an echoed prompt passes. The raw reply is not saved. A non-matching reply aborts the whole run with no retry.
+- The Nightshift prompt carries no case numbers and its first example literal is `["checkout","offer"]`; `parsePriorities()` takes the first match, so an echoed prompt passes. Recorded raw replies (`model.attempts` in the report JSON) show the 1B model often echoes both options. The workflow retries up to 3 times before failing.
+- In this environment Nightshift was installed from the Codex app, so its `proxy-token` lives under `%LOCALAPPDATA%\Packages\OpenAI.Codex_*\LocalCache\Local\ai.meterless.runtime\`, not the path `nightshiftToken()` checks. Pass it via `NIGHTSHIFT_TOKEN` (only with the user's approval to read it), or `npm run demo` fails with "unauthorized".
 - `nightshiftChat()` falls back to `meterless/auto` when `NIGHTSHIFT_MODEL` is unset; README implies `meterless/local`. `ZETARIS_ENGINE_ID` in `.env.example` is never read.
 - `sqlFor('cohorts')` gives any non-`payment-incident` case the offer-regression cohort rows, so a third case needs its own branch.
 - `demo` and `demo:legacy` overwrite the same `reports/demo.html` and `reports/latest.json` with different JSON shapes.

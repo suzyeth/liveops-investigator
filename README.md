@@ -84,7 +84,7 @@ Fixtures are SQL CTEs evaluated by Zetaris, not production tables or persistent 
 
 ## Validation and limitations
 
-Twelve automated tests cover metric handling, rejection of blank, non-numeric, or version-less evidence, cohort and payment-count reconciliation, the memory-routing rule, endpoint normalization, and authentication behavior. Both cases have also completed with actual Zetaris, Nightshift, and H-MEM calls on the development machine. Tests alone do not establish live-service availability; use `npm run verify -- --chat` and `npm run demo` for that.
+Thirteen automated tests cover metric handling, rejection of blank, non-numeric, or version-less evidence, model-reply validation, cohort and payment-count reconciliation, the memory-routing rule, endpoint normalization, and authentication behavior. Both cases have also completed with actual Zetaris, Nightshift, and H-MEM calls on the development machine. Tests alone do not establish live-service availability; use `npm run verify -- --chat` and `npm run demo` for that.
 
 A 1B model produced incorrect metric explanations during development. Consequently, model output is constrained to two allowed priority IDs and is validated; numerical findings come from code. Invalid model output fails the run. Model suggestions are advisory, and the supplied examples do not establish general model quality.
 
