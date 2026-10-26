@@ -1,0 +1,1 @@
+{"name":"liveops-investigator","version":"0.1.0","private":true,"type":"module","scripts":{"verify":"tsx src/verify.ts","demo":"tsx src/workflow.ts","test":"tsx --test src/*.test.ts","demo:legacy":"tsx src/demo.ts"},"devDependencies":{"tsx":"4.20.6"}}
