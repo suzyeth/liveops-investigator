@@ -14,14 +14,14 @@ Hard deadline: **2026-10-27 23:45 UTC** (official event page, Open Agent Hackath
 
 ## Publishing
 
-- [ ] Create the public GitHub repository and push reviewed files
-- [ ] Verify repository access from a signed-out browser
+- [x] Create the public GitHub repository and push reviewed files (https://github.com/suzyeth/liveops-investigator)
+- [x] Verify repository access while signed out (page and raw README return 200)
 
 ## Submission requirements (official rules, section 6)
 
 - [ ] Demo video, 1–4 minutes, showing the workflow and the Zetaris and Meterless integration
 - [ ] Slide deck: problem and users, solution, workflow, stack, sponsor technology use, product visuals, future work
-- [ ] GitHub repository link
+- [x] GitHub repository link: https://github.com/suzyeth/liveops-investigator
 - [ ] Integration explanation (README "Sponsor technology" section can be pasted)
 - [ ] Declare the vendored H-MEM reference implementation as a pre-existing component
 - [ ] Select the track and review the completed form before final submission
