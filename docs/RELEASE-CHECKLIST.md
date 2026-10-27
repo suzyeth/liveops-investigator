@@ -2,13 +2,13 @@
 
 Track: The Agent That Can Explain Why. Deadline: 27 October 23:45 UTC / London.
 
-- [x] Current multi-source README, project description and sponsor/H-MEM attribution.
-- [x] Current 2:59 video: real web-app run, SQL drill-down, memory recall and two reviewer challenges, synthesized English narration and burned English subtitles.
-- [x] Video export: 1920x1080, 30 fps, H.264/AAC stereo, narration normalized to -14 LUFS.
-- [x] Eight-slide deck prepared, validated, uploaded and saved in draft.
-- [x] All 20 unit tests passed; live component verification and both multi-source investigations passed on 2026-10-27.
-- [x] GitHub implementation synchronized at 9994012 before this documentation update; no secrets or licensed installers tracked.
-- [x] Current video uploaded; saved video/deck URLs verified after reloading the draft.
+- [x] README, project description and sponsor/H-MEM attribution for the current version: three cases, dollar attribution per explanation, an unexplained remainder, noise guards.
+- [x] Synthetic Pokémon GO-style data with segments derived from history and long-tailed spend, in three Postgres sources registered in Zetaris; one check joins all three.
+- [x] All 24 unit tests passed; all three live investigations passed on 2026-10-27 (run 2026-10-27T14-27-37-544Z).
+- [x] Current 3:33 video (`reports/submission/liveops-demo.mp4`): title and architecture cards, a real web-app run of three cases, the drill-down, the three-source query, an unexplained case, and two live reviewer challenges; synthesized English narration and burned English subtitles.
+- [x] 16-slide deck prepared (Claude deck "LiveOps Investigator", version 17), including the data sources, the architecture, the three cases and the unexplained case.
+- [ ] Replace the 2:59 video and the eight-slide PPTX in the submission draft with the current video and an export of the 16-slide deck.
+- [x] GitHub implementation synchronized; no secrets or licensed installers tracked.
 - [ ] Final human review; do not submit without authorization.
 
-Reproducibility limitation: services were verified on this machine, not a clean machine. All gameplay/payment data is synthetic; findings are leads, not causal proof. Original code MIT; vendored H-MEM reference Apache-2.0.
+Reproducibility limitation: services were verified on this machine, not a clean machine. All gameplay/payment data is synthetic; findings are leads with dollar estimates, not causal proof. Original code MIT; vendored H-MEM reference Apache-2.0.

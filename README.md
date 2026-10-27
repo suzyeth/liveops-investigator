@@ -14,7 +14,7 @@ LiveOps Investigator queries all three sources through Zetaris and drills down s
 
 The scenario follows Pokémon GO's public Community Day format: a monthly three-hour event, a paid Special Research ticket (US$1.99, with a later event at US$4.99), a Community Day Box on the Web Store (US$4.99), and PokéCoin packs (100 coins for US$0.99 up to 14,500 for US$99.99), bought through the App Store, Google Play or the Web Store. Sources: official Pokémon GO event pages such as [Community Day, November 2025](https://pokemongo.com/news/communityday-november-2025-pikipek) and [December 2025](https://pokemongo.com/news/community-day-december-2025), and the [Web Store launch](https://pokemongo.com/news/pokemon-go-web-store-global-launch).
 
-**Every player, order and payment record is synthetic.** `src/data/generate.ts` produces them with a fixed seed; nothing here is the game operator's or any real game's data, and the build numbers and release notes are invented. The behaviour model is written out in that file:
+**Every player, order and payment record is synthetic.** `src/data/generate.ts` produces them with a fixed seed (chosen from 60 tried, 49 of which make revenue fall in all three cases); nothing here is the game operator's or any real game's data, and the build numbers and release notes are invented. The behaviour model is written out in that file:
 
 - Segments follow their definitions: **new** installed in the 30 days before the event, **active** took part in the previous Community Day, everyone else is **returning**.
 - Spending is long-tailed (the top tenth of payers bring more than half the revenue), with repeat purchases, country-level spend and platform shares, and purchases concentrated in the three-hour window.
@@ -30,8 +30,8 @@ The data lives in three Postgres databases, each registered in Zetaris as its ow
 
 | Zetaris datasource | Source system | Tables (rows) |
 | --- | --- | --- |
-| `game_telemetry` | Game server | `players` (113,000), `event_participation` (207,499), `store_orders` (35,303) |
-| `payments` | Store purchase log | `payment_attempts` (36,197): store billing results from the game client, Web Store provider responses |
+| `game_telemetry` | Game server | `players` (113,000), `event_participation` (207,684), `store_orders` (35,760) |
+| `payments` | Store purchase log | `payment_attempts` (36,691): store billing results from the game client, Web Store provider responses |
 | `liveops` | Live-ops config | `events` (5), `offers` (40), `releases` (11) |
 
 ## Three cases
@@ -40,9 +40,9 @@ The agent compares revenue with what the turnout predicted (participants × the 
 
 | Case | Turnout and revenue | Shortfall | What the agent found |
 | --- | --- | --- | --- |
-| Community Day 1 → 2 | 34,868 → 42,972 players; $35,810 → $35,198 | $8,935 | Google Play order completion 94.4% → 67.6%; build 0.393.1 completes 48.3% of its orders; its top failure is `BILLING_UNAVAILABLE` (60.3% of failed attempts, 0% on other builds); the build shipped 47 hours before the event ended. About $4,943 is failed Google Play orders, about $6,047 the shift toward returning players who spend less; other changes added back about $2,055. The box change is named and dismissed. |
-| Community Day 3 → 4 | 38,036 → 44,574 players; $41,436 → $35,048 | $13,511 | Payments healthy. The ticket price rose to $4.99 and the box lost the ticket; the share of active players buying the ticket fell from 14.8% to 4.4%, and buyers fell in every segment with enough buyers to compare. About $6,149 is the changed offer, about $5,458 the player mix, $1,904 unexplained. |
-| Community Day 4 → 5 | 44,574 → 47,049 players; $35,048 → $32,267 | $4,727 | Payments held, no offer changed, the player mix even helped. None of the checked explanations accounts for the shortfall; all $4,727 is reported as unexplained, with a note that the next step needs data the prototype does not have. |
+| Community Day 1 → 2 | 34,614 → 43,042 players; $38,334 → $35,286 | $12,382 | Google Play order completion 93.8% → 67.6%; build 0.393.1 completes 47.7% of its orders; its top failure is `BILLING_UNAVAILABLE` (60.6% of failed attempts, 0% on other builds); the build shipped 47 hours before the event ended. About $4,943 is failed Google Play orders and about $7,250 the shift toward returning players, who spend less. The box change is named and dismissed. |
+| Community Day 3 → 4 | 38,039 → 44,577 players; $43,458 → $37,457 | $13,471 | Payments healthy. The ticket price rose to $4.99 and the box lost the ticket; the share of active players buying the ticket fell from 14.8% to 4.7%, and buyers fell in every segment with enough buyers to compare. About $3,911 is the changed offer, about $6,013 the player mix, and $3,547 is unexplained. |
+| Community Day 4 → 5 | 44,577 → 47,412 players; $37,457 → $33,611 | $6,228 | Payments held, no offer changed, and the player mix even added $1,427. None of the checked explanations accounts for the shortfall; all $6,228 is reported as unexplained, possibly normal variation or a cause that needs data the prototype does not have. |
 
 Cases two and three recall earlier lessons from H-MEM and check payments first; fresh data rules payments out each time. The numbers above come from the data and do not change between runs; the order of steps can, because Nightshift chooses among open checks.
 
