@@ -33,11 +33,14 @@ export function explain(result:any){
  const intent={before:ratio(t,'checkout','before','attempts','shop_views'),after:ratio(t,'checkout','after','attempts','shop_views')};
  const funnel=['shop_views','attempts','successes'].map(column=>({stage:column,before:cell(t,'checkout','before',column),after:cell(t,'checkout','after',column)}));
  const config=['version','price','reward_units'].map(column=>{
-  const b=row(t,'offer','before')[column],a=row(t,'offer','after')[column];
-  return {field:column,before:{value:String(b).trim(),ref:{query:'offer',period:'before',column}},after:{value:String(a).trim(),ref:{query:'offer',period:'after',column}},changed:String(b).trim()!==String(a).trim()};
+  const b=String(row(t,'offer','before')[column]).trim(),a=String(row(t,'offer','after')[column]).trim();
+  // Same comparison as evaluate(): numbers by value, the version as trimmed text.
+  const changed=column==='version'?b!==a:parseMetric(b,'Invalid offer evidence')!==parseMetric(a,'Invalid offer evidence');
+  return {field:column,before:{value:b,ref:{query:'offer',period:'before',column}},after:{value:a,ref:{query:'offer',period:'after',column}},changed};
  });
  const points=success.before.value!==null&&success.after.value!==null?(success.after.value-success.before.value)*100:null;
- const paymentDrop=points!==null&&points<-PAYMENT_DROP_POINTS,configChanged=config.some(f=>f.changed);
+ // Same expression as evaluate(), so the two cannot disagree at the threshold through rounding.
+ const paymentDrop=success.before.value!==null&&success.after.value!==null&&success.after.value<success.before.value-PAYMENT_DROP_POINTS/100,configChanged=config.some(f=>f.changed);
  if(paymentDrop!==result.verdict.paymentDrop||configChanged!==result.verdict.configChanged)throw Error('Evidence does not match the recorded verdict');
  const checks=[
   {id:'payment',question:'Did the payment step start failing?',rule:`Supported only if payment success (successes ÷ attempts) fell by more than ${PAYMENT_DROP_POINTS} percentage points.`,supported:paymentDrop,verdict:result.verdict.checkout,success,points},

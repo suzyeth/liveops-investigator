@@ -30,8 +30,14 @@ test('platform split must add up to the funnel and shows where the payment drop 
  const broken=platformRows(cases[0]);broken[3].successes='35';
  assert.throws(()=>platformBreakdown(report.results[0].trace[2].rows,broken),/does not add up/);
 });
-test('cohort split and re-query comparison',()=>{
- assert.match(cohortBreakdown(report.results[0].trace[1].rows).summary,/new players \(5% → 2%\)/);
+test('cohort split must add up to the overview and reports ties honestly',()=>{
+ const [one,two]=report.results;
+ assert.match(cohortBreakdown(one.trace[1].rows,one.overview).summary,/most for new players \(5% → 2%, -3 points\); returning 13\.3% → 12%/);
+ assert.match(cohortBreakdown(two.trace[1].rows,two.overview).summary,/same 3\.3 points in each cohort/);
+ const broken=one.trace[1].rows.map((r:any,i:number)=>i?r:{...r,payers:'21'});
+ assert.throws(()=>cohortBreakdown(broken,one.overview),/reconcile/);
+});
+test('re-query comparison ignores row order but not values',()=>{
  const rows=report.results[0].trace[0].rows;
  assert.equal(sameRows(rows,[...rows].reverse()),true);
  assert.equal(sameRows(rows,[{...rows[0],revenue:'999'},rows[1]]),false);

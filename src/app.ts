@@ -43,17 +43,17 @@ function startRun(){
   .finally(()=>{run.done=true;for(const client of run.clients)client.end();run.clients.clear();});
  return true;
 }
-function events(req:http.IncomingMessage,res:http.ServerResponse){
+// passive=1 (page load) only attaches to a run still in progress, so a reload does not replay an old one.
+function events(req:http.IncomingMessage,res:http.ServerResponse,passive:boolean){
  res.writeHead(200,{'Content-Type':'text/event-stream','Cache-Control':'no-store',Connection:'keep-alive'});
- if(!current){res.end(`data: ${JSON.stringify({type:'idle'})}\n\n`);return;}
+ if(!current||(passive&&current.done)){res.end(`data: ${JSON.stringify({type:'idle'})}\n\n`);return;}
  for(const e of current.events)res.write(`data: ${JSON.stringify(e)}\n\n`);
  if(current.done){res.end();return;}
  const run=current;run.clients.add(res);req.on('close',()=>run.clients.delete(res));
 }
 function latest(){
- if(!fs.existsSync('reports/latest.json'))return null;
- const {run}=JSON.parse(fs.readFileSync('reports/latest.json','utf8'));
- try{return loadReport(run);}catch{return null;}
+ // latest.json can be mid-write while a run finishes; treat that like "not available yet".
+ try{return loadReport(JSON.parse(fs.readFileSync('reports/latest.json','utf8')).run);}catch{return null;}
 }
 
 async function route(req:http.IncomingMessage,res:http.ServerResponse){
@@ -61,9 +61,10 @@ async function route(req:http.IncomingMessage,res:http.ServerResponse){
  const key=`${req.method} ${url.pathname}`;
  if(req.method==='GET'&&STATIC[url.pathname]){
   const [name,type]=STATIC[url.pathname];
-  res.writeHead(200,{'Content-Type':type,'Cache-Control':'no-store'});res.end(fs.readFileSync(path.join(WEB,name)));return;
+  // No framing: a page that framed the app could trick a click into a run or a review.
+  res.writeHead(200,{'Content-Type':type,'Cache-Control':'no-store','X-Frame-Options':'DENY','Content-Security-Policy':"frame-ancestors 'none'"});res.end(fs.readFileSync(path.join(WEB,name)));return;
  }
- if(key==='GET /api/events')return events(req,res);
+ if(key==='GET /api/events')return events(req,res,url.searchParams.get('passive')==='1');
  if(key==='GET /api/latest'){const report=latest();return report?send(res,200,{report,...reviewState(report.run)}):send(res,404,{error:'No investigation has finished yet'});}
  if(key==='GET /api/report'){const report=loadReport(url.searchParams.get('run')||'');return send(res,200,{report,...reviewState(report.run)});}
  if(key==='POST /api/run')return startRun()?send(res,202,{started:true}):send(res,409,{error:'An investigation is already running'});

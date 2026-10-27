@@ -17,6 +17,12 @@ test('case one finding names the payment step; case two finding names the offer 
  assert.equal(two.memory.triggered,true);assert.deepEqual(two.memory.order,['checkout','offer']);
  assert.ok(one.reconciliations.every(r=>r.ok));assert.equal(one.reconciliations.length,8);
 });
+test('a drop of exactly five points agrees with evaluate() instead of aborting the run',()=>{
+ const edge={...cases[0],before:[1000,20,1000],after:[1500,19,900],funnel:[[500,20,20],[750,20,19]],cohorts:[['before','new',400,10,400],['before','returning',600,10,600],['after','new',900,9,300],['after','returning',600,10,600]]};
+ const r=fakeResult(edge);
+ assert.equal(r.verdict.paymentDrop,false);
+ assert.equal(explain(r).checks[0].supported,false);
+});
 test('a verdict that does not match the evidence rows is rejected',()=>{
  const r=fakeResult(cases[0]);
  assert.throws(()=>explain({...r,verdict:{...r.verdict,paymentDrop:false}}),/does not match/);

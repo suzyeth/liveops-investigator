@@ -27,18 +27,18 @@ const Render=(()=>{
    <p class="from">${src(r.id,m.before)} → ${src(r.id,m.after)}</p></figure>`;
   }).join('');
   return `<section class="block"><h3><span class="n">1</span>The symptom ${flag(st.symptom)}</h3>
-  <p>${ev.revenueFell?'More players took part, but revenue fell. That is the anomaly to explain.':'Revenue did not fall, so there is nothing to explain.'} Click any number to see the SQL row it came from.</p>
+  <p>${!ev.revenueFell?'Revenue did not fall, so there is nothing to explain.':ev.symptom[0].after.value>ev.symptom[0].before.value?'More players took part, but revenue fell. That is the anomaly to explain.':'Revenue fell. That is the anomaly to explain.'} Click any number to see the SQL row it came from.</p>
   <div class="trio">${charts}</div>${legend}${challenge(r.id,'symptom')}</section>`;
  }
 
- function memory(r,ev){
+ function memory(r,ev,i){
   const m=ev.memory,label=s=>s==='checkout'?'Payment funnel':'Event offer';
-  const recalled=m.recalled.length?m.recalled.map(x=>`<code>${esc(x.id)}</code> tagged <b>${esc(x.tags.join(', ')||'none')}</b> <span class="muted">from ${esc(x.source)}</span>`).join('<br>'):'Nothing yet. This is the first investigation in this run.';
+  const recalled=m.recalled.length?m.recalled.map(x=>`<code>${esc(x.id)}</code> tagged <b>${esc(x.tags.join(', ')||'none')}</b> <span class="muted">from ${esc(x.source)}</span>`).join('<br>'):`Nothing recalled.${i===0?' This is the first case in this run.':''}`;
   return `<section class="block"><h3><span class="n">2</span>Where it looked first, and why</h3>
   <div class="flow"><div><p class="eyebrow">Recalled from H-MEM</p><p>${recalled}</p></div><div class="arrow">→</div>
   <div><p class="eyebrow">Rule</p><p>${esc(m.rule)} ${m.triggered?'<b>Triggered.</b>':'<b>Not triggered.</b>'}</p></div><div class="arrow">→</div>
   <div><p class="eyebrow">Checked in this order</p><p><b>${m.order.map(label).join(' → ')}</b></p><p class="muted">Without memory: ${m.baseline.map(label).join(' → ')}. Both checks always run.</p></div></div>
-  <p class="muted">Nightshift (${esc(m.model.name)}, local) suggested ${m.model.suggestion.map(label).join(' → ')} after ${m.model.attempts} attempt(s). The suggestion is recorded, not used to decide.</p></section>`;
+  <p class="muted">Nightshift (${esc(m.model.name)}) suggested ${m.model.suggestion.map(label).join(' → ')} after ${m.model.attempts} attempt(s). The suggestion is recorded, not used to decide.</p></section>`;
  }
 
  function payment(r,c,st,hasCohorts){
@@ -101,7 +101,7 @@ const Render=(()=>{
  function caseView(r,i,state){
   const ev=r.evidence,st=state.status[r.id],[lead,...rest]=r.title.split(':');
   return `<article class="case" id="case-${esc(r.id)}"><header><p class="eyebrow">${esc(lead)}</p><h2>${esc(cap(rest.join(':').trim()||r.title))}</h2></header>
-  ${finding(r,ev,st)}${symptom(r,ev,st)}${memory(r,ev)}
+  ${finding(r,ev,st)}${symptom(r,ev,st)}${memory(r,ev,i)}
   <section class="block"><h3><span class="n">3</span>Testing each explanation</h3><div class="grid">${payment(r,ev.checks[0],st,r.trace.some(t=>t.kind==='cohorts'))}${config(r,ev.checks[1],st)}${funnel(r,ev)}</div></section>
   ${checks(ev)}${reviews(r,state.reviews)}${sql(r)}</article>`;
  }

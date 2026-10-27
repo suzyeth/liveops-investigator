@@ -29,12 +29,12 @@ async function requery(c:any,result:any,query:string){
  const recorded=result.trace.find((t:any)=>t.kind===query),fresh=await runQuery(c,query);
  const same=sameRows(recorded.rows,fresh.rows);
  return {action:'requery',query,same,ms:fresh.ms,sql:fresh.sql,rows:fresh.rows,
-  text:same?`Re-ran the ${query} query on Zetaris: it returned the same ${fresh.rows.length} rows as recorded, so the report matches the source. If the source itself is wrong, everything that rests on it stays disputed until the data is fixed.`
+  text:same?`Re-ran the ${query} query on Zetaris: it returned the same ${fresh.rows.length} rows as recorded, so the report shows what the query returns. The data are synthetic SQL fixtures, so a wrong value would have to be corrected there. Everything that rests on this query stays marked as disputed until the review is resolved.`
    :`Re-ran the ${query} query on Zetaris and got different rows from the recorded ones. The recorded result no longer matches the source; run the investigation again.`};
 }
 async function compare(c:any,result:any,kind:string){
  const t=await runQuery(c,kind==='platform'?'platform':'cohorts');
- const breakdown=kind==='platform'?platformBreakdown(result.trace.find((x:any)=>x.kind==='checkout').rows,t.rows):cohortBreakdown(t.rows);
+ const breakdown=kind==='platform'?platformBreakdown(result.trace.find((x:any)=>x.kind==='checkout').rows,t.rows):cohortBreakdown(t.rows,result.overview);
  return {action:'compare',query:t.kind,ms:t.ms,sql:t.sql,rows:t.rows,breakdown,text:breakdown.summary};
 }
 // A rejected finding lowers the confidence of the evidence H-MEM stored for it and is logged in its ledger.
@@ -46,7 +46,7 @@ function distrust(run:string,result:any){
  memory.feedback(result.storedId,'wrong');
  const after=new HMEM({persistDir:`.state/replays/${run}`}).store.get(result.storedId)!;
  return {action:'memory',memoryId:result.storedId,before,after:after.confidence,tags:after.tags,
-  text:`Marked the evidence H-MEM stored for this case (${result.storedId}) as wrong: confidence ${before.toFixed(2)} → ${after.confidence.toFixed(2)}, tagged "review", and logged in the H-MEM ledger. A later investigation that recalls it will see the lower confidence. To check the finding a second way, ask for a comparison by platform or by player cohort.`};
+  text:`Marked the evidence H-MEM stored for this case (${result.storedId}) as wrong: confidence ${before.toFixed(2)} → ${after.confidence.toFixed(2)}, tagged "review", and logged in the H-MEM ledger. This changes the stored record for this run only; it does not affect other runs. To check the finding a second way, ask for a comparison by platform or by player cohort.`};
 }
 
 export async function submitReview(run:string,input:any){

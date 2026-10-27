@@ -10,8 +10,8 @@ export function fakeResult(c:any,prior:any[]=[]){
   {kind:'checkout',sql:'',ms:1,rows:rows(['period','shop_views','attempts','successes'],periods(c.funnel))},
   {kind:'offer',sql:'',ms:1,rows:rows(['period','version','price','reward_units'],periods(c.config))}
  ];
- const verdict=evaluate(trace[2].rows,trace[3].rows,diagnose(trace[0].rows));
- return {id:c.id,title:c.title,trace,verdict,order:plan(prior),baseline:plan([]),prior,model:{name:'meterless/local',suggestion:['checkout','offer'],attempts:['["checkout","offer"]']},storedId:'mem-1',persisted:true};
+ const overview=diagnose(trace[0].rows),verdict=evaluate(trace[2].rows,trace[3].rows,overview);
+ return {id:c.id,title:c.title,overview,trace,verdict,order:plan(prior),baseline:plan([]),prior,model:{name:'meterless/local',suggestion:['checkout','offer'],attempts:['["checkout","offer"]']},storedId:'mem-1',persisted:true};
 }
 
 export {cases};

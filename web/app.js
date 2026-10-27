@@ -30,8 +30,8 @@
    li.querySelector('span').textContent=e.status==='running'?'running…':e.log.replace(/^\[[^\]]+\]\s*/,'');
   }
  }
- function listen(){
-  const source=new EventSource('/api/events');
+ function listen(passive=false){
+  const source=new EventSource(passive?'/api/events?passive=1':'/api/events');
   source.onmessage=async m=>{
    const e=JSON.parse(m.data);
    if(e.type==='idle'){source.close();return;}
@@ -67,7 +67,8 @@
  function openReview(caseId,target,opts={}){
   pending={caseId,target,ref:opts.ref||null};
   const form=$('#review form');form.reset();
-  form.kind.value=opts.kind||(opts.compare?'missing':'distrust');
+  // No default kind: rejecting a finding changes stored memory, so the reviewer must choose it.
+  form.kind.value=opts.kind||(opts.compare?'missing':'');
   form.compare.value=opts.compare||'';
   form.compare.querySelector('[value="cohort"]').disabled=!caseOf(caseId).trace.some(t=>t.kind==='cohorts');
   $('#review .about').textContent=`About ${TARGET[target]} in “${caseOf(caseId).title}”`+(opts.ref?` · ${QUERY[opts.ref.query]}, ${opts.ref.period}, ${METRIC[opts.ref.column]||FIELD[opts.ref.column]||opts.ref.column}`:'');
@@ -78,6 +79,7 @@
  async function submit(e){
   e.preventDefault();
   const f=$('#review form'),btn=f.querySelector('[type=submit]');
+  if(!f.kind.value){$('#review .error').textContent='Choose what kind of challenge this is.';return;}
   btn.disabled=true;btn.textContent='Checking…';
   try{
    const out=await api('/api/reviews',{run:state.report.run,caseId:pending.caseId,target:pending.target,kind:f.kind.value,note:f.note.value,compare:f.kind.value==='missing'&&f.compare.value||null,ref:pending.ref});
@@ -93,7 +95,10 @@
   if(b.classList.contains('src')||b.classList.contains('query'))return drawer(b.dataset.case,b.dataset.q,b.dataset.p,b.dataset.c);
   if(b.dataset.flag){const ref=JSON.parse($('#drawer').dataset.ref);$('#drawer').hidden=true;const target=ref.query==='overview'?'symptom':ref.query==='offer'?'config':'payment';return openReview(ref.caseId,target,{kind:'data',ref:{query:ref.query,period:ref.period,column:ref.column}});}
   if(b.dataset.review)return openReview(b.dataset.review,b.dataset.target,{compare:b.dataset.compare});
-  if(b.dataset.resolve){const out=await api('/api/reviews/resolve',{run:state.report.run,id:b.dataset.resolve});return show({...state,reviews:out.reviews,status:out.status});}
+  if(b.dataset.resolve){
+   try{const out=await api('/api/reviews/resolve',{run:state.report.run,id:b.dataset.resolve});return show({...state,reviews:out.reviews,status:out.status});}
+   catch(err){b.textContent=`Could not resolve: ${err.message}`;return;}
+  }
   if(b.dataset.close)return b.closest('dialog')?b.closest('dialog').close():($('#drawer').hidden=true);
  });
  document.addEventListener('keydown',e=>{if(e.key==='Escape')$('#drawer').hidden=true;});
@@ -101,5 +106,5 @@
  $('#review form').addEventListener('submit',submit);
 
  api('/api/latest').then(show).catch(()=>{$('#runinfo').textContent='No finished run yet. Start one to see the evidence.';});
- listen(); // picks up a run that is already in progress
+ listen(true); // picks up a run that is already in progress
 })();
