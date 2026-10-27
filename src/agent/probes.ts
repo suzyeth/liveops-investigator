@@ -111,7 +111,7 @@ GROUP BY CASE WHEN e.app_version = ${lit(p.version)} THEN 'suspect build' ELSE '
    const share=(g:any,code:string)=>g.failures?(g.codes.find((x:any)=>x.code===code)?.attempts??0)/g.failures:0;
    const code=s.top?.code??null,concentrated=code!==null&&share(s,code)>=0.3&&share(s,code)>=share(o,code)+0.2;
    return {summary:code?`On build ${p.version}, the top failure is ${code} (${pct(share(s,code))} of its failed attempts) against ${pct(share(o,code))} on other builds.`:'No failed attempts on the suspect build.',
-    metrics:{suspect:s,other:o,topCode:code,concentrated},checks:[],next:[]};
+    metrics:{provider:p.provider,version:p.version,suspect:s,other:o,topCode:code,concentrated},checks:[],next:[]};
   }},
 
  release_notes:{id:'release_notes',title:'App releases',question:'Did a release ship between the two events?',sources:['liveops'],
@@ -119,9 +119,11 @@ GROUP BY CASE WHEN e.app_version = ${lit(p.version)} THEN 'suspect build' ELSE '
 WHERE platform = ${lit(p.platform)} AND released_at > ${lit(c.window.from)} AND released_at <= ${lit(c.window.to)} ORDER BY released_at`,
   analyze:(rows,c,p)=>{
    const hit=rows.find(r=>r.version===p.version);
-   const days=hit?Math.round((Date.parse(c.window.to)-Date.parse(String(hit.released_at)))/864e5*10)/10:null;
+   // Zetaris returns timestamps as 'YYYY-MM-DD HH:MM:SS.f' in UTC; parse them as UTC, not local time.
+   const utc=(v:unknown)=>Date.parse(String(v).trim().replace(' ','T').replace(/\.\d+$/,'')+(/[zZ]|[+-]\d\d:?\d\d$/.test(String(v))?'':'Z'));
+   const days=hit?Math.round((Date.parse(c.window.to)-utc(hit.released_at))/864e5*10)/10:null;
    return {summary:hit?`Build ${p.version} shipped ${String(hit.released_at).slice(0,10)}, ${days} days before the event ended: “${hit.notes}”.`:`No ${p.platform} release of ${p.version} between the events.`,
-    metrics:{release:hit??null,daysBefore:days},checks:[],next:[]};
+    metrics:{platform:p.platform,version:p.version,release:hit??null,daysBefore:days},checks:[],next:[]};
   }},
 
  offer_changes:{id:'offer_changes',title:'Offer changes',question:'Did the price or contents of an offer change?',sources:['liveops'],
@@ -159,7 +161,7 @@ WHERE p.event_id IN ${events(c)} GROUP BY p.event_id, p.segment ORDER BY p.segme
   }},
 
  product_conversion:{id:'product_conversion',title:'Buyers by segment',question:'Did fewer players buy the changed offer, in every segment?',sources:['game_telemetry'],
-  sql:(c,p)=>`SELECT p.event_id, p.segment, COUNT(*) AS participants, COUNT(DISTINCT o.player_id) AS buyers
+  sql:(c,p)=>`SELECT p.event_id, p.segment, COUNT(DISTINCT p.player_id) AS participants, COUNT(DISTINCT o.player_id) AS buyers
 FROM game_telemetry.event_participation p
 LEFT JOIN game_telemetry.store_orders o ON o.event_id = p.event_id AND o.player_id = p.player_id AND o.status = 'completed' AND o.sku = ${lit(p.sku)}
 WHERE p.event_id IN ${events(c)} GROUP BY p.event_id, p.segment ORDER BY p.segment, p.event_id`,

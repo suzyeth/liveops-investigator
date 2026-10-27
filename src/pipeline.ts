@@ -10,7 +10,7 @@ const RECALL='Community Day revenue investigation lesson';
 // Every SELECT goes through Zetaris; a truncated result fails rather than reporting partial evidence.
 export async function query(sql:string){
  const start=Date.now(),res=await zetarisQuery(sql);
- if(!Array.isArray(res.records)||Number(res.totalCount)>res.records.length)throw Error('Missing or truncated SQL evidence');
+ if(!Array.isArray(res.records)||!Number.isFinite(Number(res.totalCount))||Number(res.totalCount)>res.records.length)throw Error('Missing or truncated SQL evidence');
  return {rows:res.records,ms:Date.now()-start};
 }
 

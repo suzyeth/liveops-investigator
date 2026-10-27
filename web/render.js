@@ -28,7 +28,7 @@ const Render=(()=>{
   if(probe==='product_conversion')return bars(m.segments.map(s=>({label:s.segment,before:s.before,after:s.after})),{format:pct,label:'Share of participants who bought'})+legend();
   if(probe==='revenue_by_country')return bars([...m.items].sort((a,b)=>b.before-a.before).slice(0,6).map(x=>({label:x.country,before:x.before,after:x.after})),{format:usd,label:'Revenue by country'})+legend();
   if(probe==='offer_changes')return m.changes.length?`<table class="diff"><tr><th>Offer</th><th>Before</th><th>After</th></tr>${m.changes.map(x=>`<tr class="changed"><td>${esc(x.name)}</td><td>$${esc(x.priceBefore)} · ${esc(x.contentsBefore)}</td><td>$${esc(x.priceAfter)} · ${esc(x.contentsAfter)}</td></tr>`).join('')}</table>`:'';
-  if(probe==='release_notes')return m.release?`<div class="release"><b>${esc(m.release.version)}</b> · ${esc(m.release.platform)} · ${esc(String(m.release.released_at).slice(0,16).replace('T',' '))} UTC<br>${esc(m.release.notes)}</div>`:'';
+  if(probe==='release_notes')return m.release?`<div class="release"><b>${esc(m.release.version)}</b> · ${esc(m.release.platform)} · ${esc(String(m.release.released_at).slice(0,16).replace('T',' '))} UTC<br>${esc(m.release.notes)} <span class="muted">(synthetic release record)</span></div>`:'';
   return '';
  }
  function rows(caseId,key,list,clickable=true){

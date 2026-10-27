@@ -62,8 +62,11 @@ test('a failed cross-source check stops the investigation',async()=>{
  await assert.rejects(investigate({id:'x',before:'cd_01',after:'cd_02'},{query:fakeQuery(bad),choose:noModel,lessons:[],emit:()=>{}}),/OK attempts/);
 });
 test('hypotheses are only supported by the evidence that was collected',()=>{
- const h=assess({payment_by_provider:{failing:['google_play']},payment_by_version:{suspect:'0.393.1'},error_codes:{concentrated:true},release_notes:{release:{version:'0.393.1'}},offer_changes:{relevant:[]},segment_mix:{contributes:false}});
+ const h=assess({payment_by_provider:{failing:['google_play']},payment_by_version:{provider:'google_play',suspect:'0.393.1'},error_codes:{provider:'google_play',version:'0.393.1',concentrated:true},release_notes:{version:'0.393.1',release:{version:'0.393.1'}},offer_changes:{relevant:[]},segment_mix:{contributes:false}});
  assert.equal(h[0].status,'supported, corroborated by three sources');assert.equal(h[1].status,'not supported');assert.equal(h[2].status,'not supported');
  assert.equal(assess({payment_by_provider:{failing:['google_play']}})[0].status,'supported');
  assert.equal(assess({})[1].status,'not checked');
+ // Corroboration must come from the failing store's own drill-down, not another store's.
+ const other=assess({payment_by_provider:{failing:['google_play']},payment_by_version:{runs:[{provider:'app_store',suspect:'0.393.1'}]},error_codes:{provider:'app_store',version:'0.393.1',concentrated:true},release_notes:{version:'0.393.1',release:{}}});
+ assert.equal(other[0].status,'supported');
 });

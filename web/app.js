@@ -37,7 +37,7 @@
    if(e.type==='idle'){source.close();return;}
    if(e.type==='run'){$('#progress .steps').innerHTML='';$('#progress .status').textContent='Running against Zetaris (three data sources), Nightshift and H-MEM on this machine…';}
    progress(e);
-   if(e.type==='complete'){source.close();$('#progress .status').textContent='Finished. Every check passed its consistency tests.';$('#run').disabled=false;show(await api(`/api/report?run=${e.run}`));document.querySelector('.case')?.scrollIntoView({behavior:'smooth'});}
+   if(e.type==='complete'){source.close();$('#progress .status').textContent='Finished. All cross-source consistency checks passed.';$('#run').disabled=false;show(await api(`/api/report?run=${e.run}`));document.querySelector('.case')?.scrollIntoView({behavior:'smooth'});}
    if(e.type==='failed'){source.close();$('#progress .status').textContent=`Stopped: ${e.message}. No new report was written.`;$('#run').disabled=false;}
   };
   source.onerror=()=>{source.close();$('#run').disabled=false;};

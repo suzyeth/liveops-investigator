@@ -67,7 +67,9 @@ export async function submitReview(run:string,input:any){
   for(const k of keys)responses.push(await requery(result.steps.find((s:any)=>s.key===k)));
  }
  if(review.compare)responses.push(await compare(result,review.compare));
- if(review.kind==='distrust')responses.push(distrust(run,result));
+ // Only a challenge to the finding, or to the lead and the steps behind it, touches the stored lesson.
+ const aboutLead=review.target==='finding'||review.target===result.lead||(result.lead&&dependsOn(result,result.lead).includes(review.target));
+ if(review.kind==='distrust')responses.push(aboutLead?distrust(run,result):{action:'note',text:'Recorded and marked as disputed. This part is not what the stored lesson rests on, so H-MEM was left unchanged.'});
  if(!responses.length)responses.push({action:'note',text:`Recorded. Comparisons this case has not run yet: ${comparisons(result).map(x=>x.title).join(', ')||'none'}.`});
  const reviews=loadReviews(run);
  const id=`R${reviews.length+1}`;

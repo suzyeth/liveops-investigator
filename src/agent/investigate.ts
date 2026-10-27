@@ -73,6 +73,7 @@ export async function investigate(c:{id:string,before:string,after:string},deps:
   deps.emit({type:'step',caseId:c.id,step:k,title:probe.title,status:'done',log:`[Zetaris] ${probe.title} (${probe.sources.join(' + ')}): ${result.summary}`,by});
   frontier.push(...result.next.filter(x=>!seen.has(keyOf(x))));
  }
+ if(frontier.some(x=>!seen.has(keyOf(x))))throw Error(`Stopped after ${MAX_STEPS} checks with checks still open`);
  const hypotheses=assess(metrics);
  const lead=hypotheses.find(h=>h.status.startsWith('supported'));
  const firstLead=lead?steps.findIndex(s=>s.probe===lead.surfacedBy)+1:null;
@@ -81,8 +82,16 @@ export async function investigate(c:{id:string,before:string,after:string},deps:
   firstLead,firstLeadWithoutMemory:lead?baseline.findIndex(k=>k.startsWith(lead.surfacedBy))+1:null};
 }
 
+// Every run of a probe (a probe can run once per store or per offer).
+export const runs=(m:Record<string,any>,probe:string):any[]=>m[probe]?.runs??(m[probe]?[m[probe]]:[]);
+// The drill-down for the first failing store: its build, that build's error codes and its release.
+export function trail(m:Record<string,any>){
+ const store=m.payment_by_provider?.failing?.[0];
+ const ver=runs(m,'payment_by_version').find(r=>r.provider===store&&r.suspect);
+ return {store,ver,err:ver&&runs(m,'error_codes').find(r=>r.provider===store&&r.version===ver.suspect),rel:ver&&runs(m,'release_notes').find(r=>r.version===ver.suspect)};
+}
 export function assess(m:Record<string,any>){
- const pay=m.payment_by_provider,ver=m.payment_by_version,err=m.error_codes,rel=m.release_notes;
+ const pay=m.payment_by_provider,{ver,err,rel}=trail(m);
  const offers=m.offer_changes,conv=m.product_conversion,mix=m.segment_mix;
  const payment={id:'payment',label:'Purchases are failing at payment',surfacedBy:'payment_by_provider',
   status:!pay?'not checked':!pay.failing.length?'not supported':ver?.suspect&&err?.concentrated&&rel?.release?'supported, corroborated by three sources':'supported',
@@ -102,15 +111,21 @@ function finding(m:Record<string,any>,h:any[]){
  const parts:string[]=[];
  if(h[0].status.startsWith('supported')){
   const s=m.payment_by_provider.stores.find((x:any)=>x.provider===m.payment_by_provider.failing[0]);
+  const {ver,err,rel}=trail(m);
   parts.push(`Look at payments first: ${s.provider} order success fell from ${pct(s.before)} to ${pct(s.after)}`+
-   (m.payment_by_version?.suspect?`, concentrated on build ${m.payment_by_version.suspect}`:'')+
-   (m.error_codes?.concentrated?`, which fails mostly with ${m.error_codes.topCode}`:'')+
-   (m.release_notes?.release?`; that build shipped ${m.release_notes.daysBefore} days before the event ended`:'')+'.');
+   (ver?`, concentrated on build ${ver.suspect}`:'')+(err?.concentrated?`, which fails mostly with ${err.topCode}`:'')+
+   (rel?.release?`; that build shipped ${rel.daysBefore} days before the event ended`:'')+'.');
  }
  if(h[1].status.startsWith('supported')){
   const c=m.offer_changes.changes.filter((x:any)=>m.offer_changes.relevant.includes(x.sku));
-  parts.push(`${parts.length?'Also, the':'The'} offer changed: ${c.map((x:any)=>x.priceBefore!==x.priceAfter?`${x.name} went from $${x.priceBefore} to $${x.priceAfter}`:`${x.name} no longer includes “${x.contentsBefore.split(',')[0]}”`).join(', and ')}`+
-   (m.product_conversion?.everywhere?`, and fewer players bought it in every segment`:'')+'.');
+  const items=(t:string)=>t.split(',').map(x=>x.trim()).filter(Boolean);
+  const describe=(x:any)=>{
+   if(x.priceBefore!==x.priceAfter)return `${x.name} went from $${x.priceBefore} to $${x.priceAfter}`;
+   const removed=items(x.contentsBefore).filter(i=>!items(x.contentsAfter).includes(i));
+   return removed.length?`${x.name} no longer includes ${removed.map(i=>`“${i}”`).join(' or ')}`:`${x.name} changed its contents`;
+  };
+  parts.push(`${parts.length?'Also, the':'The'} offer changed: ${c.map(describe).join(', and ')}`+
+   (m.product_conversion?.everywhere?`, and fewer players bought ${c.length>1?'them':'it'} in every segment`:'')+'.');
  }
  if(h[2].status==='contributes')parts.push(`The player mix shifted toward lower spenders, which by itself lowers revenue per participant by ${Math.round(-m.segment_mix.mixEffect*1000)/10}%.`);
  if(!parts.length)return 'None of the checked explanations is supported; the revenue drop needs other data.';
