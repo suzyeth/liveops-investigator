@@ -7,81 +7,130 @@ function rng(seed:number){ // mulberry32
 }
 type Weighted<T>=[T,number][];
 const pick=<T,>(r:()=>number,items:Weighted<T>)=>{let x=r()*items.reduce((s,[,w])=>s+w,0);for(const [v,w] of items){if((x-=w)<0)return v;}return items[items.length-1][0];};
+const DAY=864e5;
+const normal=(r:()=>number)=>Math.sqrt(-2*Math.log(1-r()))*Math.cos(2*Math.PI*r());
+const poisson=(r:()=>number,mean:number)=>{let k=0,p=Math.exp(-mean),s=p;const u=r();while(u>s&&k<50){k++;p*=mean/k;s+=p;}return k;};
 
-const POOL=95000;
-const COUNTRIES:Weighted<string>=[['US',34],['JP',12],['BR',8],['GB',7],['DE',7],['MX',5],['FR',5],['KR',4],['CA',4],['AU',3],['IT',3],['ES',3],['TW',2],['PH',3]];
-const PARTICIPANTS:Record<string,number>={cd_01:42000,cd_02:55000,cd_03:47000,cd_04:57000};
-// Share of active / returning (lapsed 30+ days) / new players among each event's participants.
-const MIX:Record<string,Weighted<string>>={cd_01:[['active',74],['returning',16],['new',10]],cd_02:[['active',62],['returning',28],['new',10]],cd_03:[['active',72],['returning',17],['new',11]],cd_04:[['active',64],['returning',26],['new',10]]};
+// Players: country, platform share by country, and how much a player tends to spend
+// (log-normal, so a few players spend most of the money).
+const COUNTRIES:Weighted<string>=[['US',30],['JP',13],['BR',8],['GB',6],['DE',6],['MX',5],['FR',4],['KR',4],['CA',4],['AU',3],['IT',3],['ES',3],['TW',3],['PH',4],['ID',4]];
+const IOS_SHARE:Record<string,number>={US:0.55,JP:0.66,GB:0.5,AU:0.55,CA:0.5,KR:0.3,DE:0.36,FR:0.4,IT:0.3,ES:0.3,TW:0.42,BR:0.12,MX:0.2,PH:0.15,ID:0.1};
+const SPEND:Record<string,number>={US:1.2,JP:1.5,KR:1.2,TW:1.1,AU:1.1,CA:1.1,GB:1.0,DE:1.0,FR:0.9,IT:0.8,ES:0.8,BR:0.35,MX:0.45,PH:0.3,ID:0.3};
+const WEB_STORE:Record<string,number>={US:0.22,GB:0.2,CA:0.2,AU:0.2,DE:0.12,FR:0.12};
+const BASE_PLAYERS=88000;
+// New installs in the 30 days before each event (Community Day 5 follows an acquisition campaign).
+const NEW_INSTALLS:Record<string,number>={cd_01:3000,cd_02:5500,cd_03:3500,cd_04:5000,cd_05:8000};
+
+// Who takes part. "active" took part in the previous Community Day (for the first one: was active in
+// the 30 days before it); "new" installed in the 30 days before the event; everyone else is "returning".
+const JOIN:Record<string,Record<string,number>>={
+ cd_01:{active:0.72,returning:0.10,new:0.50},cd_02:{active:0.80,returning:0.22,new:0.50},cd_03:{active:0.72,returning:0.10,new:0.50},
+ cd_04:{active:0.78,returning:0.20,new:0.50},cd_05:{active:0.74,returning:0.17,new:0.50}};
+// Android builds on the device during each event. 0.393.1 is a staged rollout.
 const VERSIONS:Record<string,Record<string,Weighted<string>>>={
- cd_01:{android:[['0.391.0',90],['0.389.1',10]],ios:[['0.391.0',88],['0.389.1',12]]},
- cd_02:{android:[['0.393.1',82],['0.391.0',18]],ios:[['0.393.1',78],['0.391.0',22]]},
- cd_03:{android:[['0.395.0',85],['0.393.2',15]],ios:[['0.395.0',83],['0.393.1',17]]},
- cd_04:{android:[['0.397.0',88],['0.395.0',12]],ios:[['0.397.0',86],['0.395.0',14]]}
+ cd_01:{android:[['0.391.0',88],['0.389.1',12]],ios:[['0.391.0',86],['0.389.1',14]]},
+ cd_02:{android:[['0.393.1',58],['0.391.0',42]],ios:[['0.393.1',80],['0.391.0',20]]},
+ cd_03:{android:[['0.395.0',84],['0.393.2',16]],ios:[['0.395.0',83],['0.393.1',17]]},
+ cd_04:{android:[['0.397.0',87],['0.395.0',13]],ios:[['0.397.0',86],['0.395.0',14]]},
+ cd_05:{android:[['0.399.0',70],['0.397.0',30]],ios:[['0.399.0',72],['0.397.0',28]]}
 };
-// Purchase propensity per event participant, by segment.
-const P_TICKET:Record<string,number>={active:0.26,returning:0.14,new:0.07};
-const P_BOX:Record<string,number>={active:0.30,returning:0.15,new:0.05}; // Web Store users only
-const P_COINS:Record<string,number>={active:0.035,returning:0.02,new:0.012};
-// Community Day 4: ticket price US$1.99 → US$4.99; the box no longer contains the ticket.
-const TICKET_FACTOR:Record<string,number>={cd_04:0.2};
-const BOX_FACTOR:Record<string,number>={cd_04:0.30};
-// Payment outcome by provider. The Android 0.393.1 build breaks Google Play Billing for most attempts.
-const SUCCESS:Record<string,number>={google_play:0.93,app_store:0.945,web_store:0.955};
-const BROKEN_SUCCESS=0.22;
+// Purchase propensity per participant, by segment.
+const P_TICKET:Record<string,number>={active:0.16,returning:0.06,new:0.05};
+const P_BOX:Record<string,number>={active:0.09,returning:0.045,new:0.02}; // Web Store users only
+const COIN_BUYER:Record<string,number>={active:0.05,returning:0.012,new:0.01}; // chance of buying coins at all, scaled by spend
+// The US$4.99 ticket (Community Day 4 onward): price sensitivity differs by segment.
+const TICKET_PRICE_FACTOR:Record<string,number>={active:0.3,returning:0.16,new:0.12};
+// Box contents: an added Incubator helps a little; losing the ticket hurts.
+const BOX_FACTOR:Record<string,number>={cd_02:1.1,cd_03:1.1,cd_04:0.35,cd_05:0.35};
+// Community Day 5: players spend less on everything, for a reason none of the sources records
+// (for example a featured Pokémon that players care less about). The agent has no check for it.
+const DEMAND:Record<string,number>={cd_05:0.72};
+// Purchase outcome per attempt, by store. The Android 0.393.1 build breaks Google Play billing for most attempts.
+const SUCCESS:Record<string,number>={google_play:0.93,app_store:0.94,web_store:0.92};
+const BROKEN_SUCCESS=0.4;
 const FAIL_CODES:Record<string,Weighted<string>>={
- google_play:[['USER_CANCELED',60],['NETWORK_ERROR',15],['SERVICE_UNAVAILABLE',10],['ERROR',10],['ITEM_UNAVAILABLE',5]],
- google_play_broken:[['BILLING_UNAVAILABLE',55],['SERVICE_UNAVAILABLE',20],['USER_CANCELED',15],['ERROR',10]],
- app_store:[['SKErrorPaymentCancelled',70],['SKErrorCloudServiceNetworkConnectionFailed',20],['SKErrorUnknown',10]],
- web_store:[['card_declined',45],['authentication_required',25],['expired_card',20],['processing_error',10]]
+ google_play:[['USER_CANCELED',55],['NETWORK_ERROR',15],['SERVICE_UNAVAILABLE',12],['ERROR',12],['ITEM_UNAVAILABLE',6]],
+ google_play_broken:[['BILLING_UNAVAILABLE',60],['SERVICE_UNAVAILABLE',18],['USER_CANCELED',14],['ERROR',8]],
+ app_store:[['SKErrorPaymentCancelled',65],['SKErrorCloudServiceNetworkConnectionFailed',20],['SKErrorUnknown',15]],
+ web_store:[['checkout_abandoned',35],['card_declined',30],['authentication_required',20],['expired_card',10],['processing_error',5]]
 };
-const CANCEL=new Set(['USER_CANCELED','SKErrorPaymentCancelled']);
-const RETRY=0.4;
+const CANCEL=new Set(['USER_CANCELED','SKErrorPaymentCancelled','checkout_abandoned']);
+const RETRY=0.4,SWITCH_TO_WEB=0.25;
 
 export function generate(seed=20260417){
  const r=rng(seed);
- const players=Array.from({length:POOL},(_,i)=>{
-  const country=pick(r,COUNTRIES),platform=r()<0.58?'android':'ios';
-  const day=Math.floor(r()*900);
-  return {player_id:`p${String(i+1).padStart(6,'0')}`,platform,country,first_seen:new Date(Date.UTC(2023,6,1)+day*864e5).toISOString().slice(0,10),web_store_user:r()<(['US','GB','CA','AU'].includes(country)?0.2:0.08)};
- });
+ const mk=(i:number,firstSeen:number,lastActive:number)=>{
+  const country=pick(r,COUNTRIES),platform=r()<IOS_SHARE[country]?'ios':'android';
+  return {player_id:`p${String(i+1).padStart(6,'0')}`,platform,country,first_seen:new Date(firstSeen).toISOString().slice(0,10),
+   last_active_2025:new Date(lastActive).toISOString().slice(0,10),spend:Math.exp(normal(r)*0.8-0.3)*SPEND[country],web:r()<(WEB_STORE[country]??0.06)};
+ };
+ const players:any[]=[];
+ const first=Date.parse(EVENTS[0].starts_at);
+ for(let i=0;i<BASE_PLAYERS;i++){
+  const firstSeen=Date.UTC(2023,6,1)+Math.floor(r()*880)*DAY;
+  // 45% were active in the last month of 2025; the rest last played earlier.
+  const lastActive=r()<0.45?first-Math.floor(1+r()*29)*DAY:Math.max(firstSeen,first-Math.floor(31+r()*400)*DAY);
+  players.push(mk(i,firstSeen,lastActive));
+ }
  const participation:any[]=[],orders:any[]=[],attempts:any[]=[];
- let orderSeq=0,attemptSeq=0;
- for(const e of EVENTS){
+ let orderSeq=0,attemptSeq=0,prev=new Set<string>();
+ for(const [k,e] of EVENTS.entries()){
+  const start=Date.parse(e.starts_at),end=Date.parse(e.ends_at);
+  for(let i=0;i<NEW_INSTALLS[e.event_id];i++){const fs=start-Math.floor(1+r()*29)*DAY;players.push(mk(players.length,fs,fs));}
   const offers=OFFERS.filter(o=>o.event_id===e.event_id),price=(sku:string)=>offers.find(o=>o.sku===sku)!.price_usd;
-  const start=Date.parse(e.starts_at)-24*36e5,span=Date.parse(e.ends_at)-start;
-  // Partial Fisher-Yates: a distinct random set of participants for this event.
-  const ids=players.map((_,i)=>i);
-  for(let i=0;i<PARTICIPANTS[e.event_id];i++){const j=i+Math.floor(r()*(ids.length-i));[ids[i],ids[j]]=[ids[j],ids[i]];}
-  for(const idx of ids.slice(0,PARTICIPANTS[e.event_id])){
-   const p=players[idx],segment=pick(r,MIX[e.event_id]),app_version=pick(r,VERSIONS[e.event_id][p.platform]);
-   participation.push({event_id:e.event_id,player_id:p.player_id,platform:p.platform,app_version,segment,sessions:1+Math.floor(r()*(segment==='active'?6:3)),minutes_played:Math.round(25+r()*(segment==='active'?160:90))});
-   const store=p.platform==='android'?'google_play':'app_store';
+  const ticketAtHigherPrice=price('cd_ticket')>1.99;
+  const now=new Set<string>();
+  for(const p of players){
+   const fs=Date.parse(p.first_seen);
+   if(fs>start)continue;
+   const segment=fs>=start-30*DAY?'new':(k===0?Date.parse(p.last_active_2025)>=start-30*DAY:prev.has(p.player_id))?'active':'returning';
+   if(r()>=JOIN[e.event_id][segment])continue;
+   now.add(p.player_id);
+   const app_version=pick(r,VERSIONS[e.event_id][p.platform]);
+   participation.push({event_id:e.event_id,player_id:p.player_id,platform:p.platform,app_version,segment,
+    sessions:1+Math.floor(r()*(segment==='active'?6:3)),minutes_played:Math.round(25+r()*(segment==='active'?160:90))});
+   const demand=DEMAND[e.event_id]??1,store=p.platform==='android'?'google_play':'app_store';
+   const lift=Math.min(2.5,0.6+0.4*p.spend);
    const wants:{sku:string,channel:string}[]=[];
-   const boxed=p.web_store_user&&r()<P_BOX[segment]*(BOX_FACTOR[e.event_id]??1);
+   const boxed=p.web&&r()<P_BOX[segment]*lift*(BOX_FACTOR[e.event_id]??1)*demand;
    if(boxed)wants.push({sku:'cd_box_web',channel:'web_store'});
-   // The box used to include the ticket, so box buyers did not also buy a ticket.
-   const boxHasTicket=e.event_id!=='cd_04';
-   if(!(boxed&&boxHasTicket)&&r()<P_TICKET[segment]*(TICKET_FACTOR[e.event_id]??1))wants.push({sku:'cd_ticket',channel:p.web_store_user&&r()<0.4?'web_store':store});
-   if(r()<P_COINS[segment])wants.push({sku:pick(r,COIN_PACKS.map(c=>[c.sku,c.weight] as [string,number])),channel:p.web_store_user&&r()<0.4?'web_store':store});
+   const boxHasTicket=!ticketAtHigherPrice;
+   if(!(boxed&&boxHasTicket)&&r()<P_TICKET[segment]*lift*(ticketAtHigherPrice?TICKET_PRICE_FACTOR[segment]:1)*(demand+1)/2)
+    wants.push({sku:'cd_ticket',channel:p.web&&r()<0.4?'web_store':store});
+   // Coin buyers: the chance and the number of purchases grow with how much the player tends to spend,
+   // and bigger spenders buy bigger packs.
+   const n=r()<Math.min(0.6,COIN_BUYER[segment]*lift*demand)?1+poisson(r,0.7*p.spend):0;
+   for(let j=0;j<n;j++){
+    const tier=Math.min(5,Math.max(0,Math.round(Math.log2(1+p.spend)+normal(r)*0.9)));
+    wants.push({sku:COIN_PACKS[tier].sku,channel:p.web&&r()<0.5?'web_store':store});
+   }
    for(const w of wants){
-    const order_id=`o${String(++orderSeq).padStart(7,'0')}`,created=start+r()*span;
-    const broken=w.channel==='google_play'&&app_version==='0.393.1';
-    let ok=false,lastCode='';
-    for(let n=0;n<2&&!ok;n++){
-     if(n===1&&(CANCEL.has(lastCode)||r()>RETRY))break;
-     ok=r()<(broken?BROKEN_SUCCESS:SUCCESS[w.channel]);
-     lastCode=ok?'OK':pick(r,FAIL_CODES[broken?'google_play_broken':w.channel]);
-     attempts.push({attempt_id:`a${String(++attemptSeq).padStart(7,'0')}`,order_id,provider:w.channel,response_code:lastCode,
-      latency_ms:Math.round((broken&&!ok?2400:850)*(0.6+r()*0.9)),attempted_at:new Date(created+n*45e3).toISOString()});
+    // Most purchases happen during the three-hour event; some the day before, some just after.
+    const x=r(),created=x<0.65?start+r()*(end-start):x<0.9?start-r()*24*36e5:end+r()*6*36e5;
+    let channel=w.channel;
+    for(let leg=0;leg<2;leg++){
+     const order_id=`o${String(++orderSeq).padStart(7,'0')}`,at=created+leg*15*60e3;
+     const broken=channel==='google_play'&&app_version==='0.393.1';
+     let ok=false,code='';
+     for(let n2=0;n2<2&&!ok;n2++){
+      if(n2===1&&(CANCEL.has(code)||r()>RETRY))break;
+      ok=r()<(broken?BROKEN_SUCCESS:SUCCESS[channel]);
+      code=ok?'OK':pick(r,FAIL_CODES[broken?'google_play_broken':channel]);
+      attempts.push({attempt_id:`a${String(++attemptSeq).padStart(7,'0')}`,order_id,provider:channel,response_code:code,
+       latency_ms:Math.round((broken&&!ok?2400:850)*(0.6+r()*0.9)),attempted_at:new Date(at+n2*45e3).toISOString()});
+     }
+     orders.push({order_id,event_id:e.event_id,player_id:p.player_id,sku:w.sku,channel,price_usd:price(w.sku),
+      status:ok?'completed':CANCEL.has(code)?'canceled':'failed',created_at:new Date(at).toISOString()});
+     // A Web Store user whose app-store purchase failed sometimes buys the same item on the web instead.
+     if(ok||CANCEL.has(code)||channel==='web_store'||!p.web||r()>SWITCH_TO_WEB)break;
+     channel='web_store';
     }
-    orders.push({order_id,event_id:e.event_id,player_id:p.player_id,sku:w.sku,channel:w.channel,price_usd:price(w.sku),
-     status:ok?'completed':CANCEL.has(lastCode)?'canceled':'failed',created_at:new Date(created).toISOString()});
    }
   }
+  prev=now;
  }
  return {
-  game:{players:players.map(({web_store_user,...p})=>p),event_participation:participation,store_orders:orders},
+  game:{players:players.map(({spend,web,...p})=>p),event_participation:participation,store_orders:orders},
   billing:{payment_attempts:attempts},
   liveops:{events:EVENTS,offers:OFFERS,releases:RELEASES}
  };

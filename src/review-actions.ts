@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import {HMEM} from '../vendor/hmem/src/index.ts';
 import {PROBES} from './agent/probes.ts';
 import {CASES,context} from './agent/investigate.ts';
-import {query} from './pipeline.ts';
+import {query,writeJson} from './pipeline.ts';
 import {validateReview,assess,comparisons,sameRows,dependsOn} from './review.ts';
 // Carries out a reviewer challenge against the real services and keeps the dialogue per run
 // in reports/<run>.reviews.json. Nothing here changes the recorded investigation itself.
@@ -13,7 +13,7 @@ export function loadReport(run:string){
  if(typeof run!=='string'||!RUN_ID.test(run))throw Error('Invalid run id');
  if(!fs.existsSync(`reports/${run}.json`))throw Error('Unknown run');
  const report=JSON.parse(fs.readFileSync(`reports/${run}.json`,'utf8'));
- if(report.version!==2)throw Error('This run predates the current investigation; run it again');
+ if(report.version!==3)throw Error('This run predates the current investigation; run it again');
  return report;
 }
 export function loadReviews(run:string):any[]{
@@ -25,7 +25,7 @@ export function reviewState(run:string){
  return {reviews,status:Object.fromEntries(report.results.map((r:any)=>[r.id,assess(r,reviews)])),
   comparisons:Object.fromEntries(report.results.map((r:any)=>[r.id,comparisons(r)]))};
 }
-function save(run:string,reviews:any[]){fs.writeFileSync(file(run),JSON.stringify(reviews,null,2));return reviewState(run);}
+function save(run:string,reviews:any[]){writeJson(file(run),reviews);return reviewState(run);}
 
 async function requery(step:any){
  const fresh=await query(step.sql),same=sameRows(step.rows,fresh.rows);

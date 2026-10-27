@@ -25,6 +25,7 @@ function trusted(req:http.IncomingMessage){
 function body(req:http.IncomingMessage):Promise<any>{
  return new Promise((resolve,reject)=>{
   let text='';
+  req.setEncoding('utf8');
   req.on('data',chunk=>{text+=chunk;if(text.length>BODY_LIMIT){reject(Error('Request body too large'));req.destroy();}});
   req.on('end',()=>{try{resolve(text?JSON.parse(text):{});}catch{reject(Error('Request body is not JSON'));}});
   req.on('error',reject);

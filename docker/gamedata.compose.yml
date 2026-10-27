@@ -1,5 +1,6 @@
 # Local Postgres that holds the synthetic game data sources. Joins the Zetaris network so the
 # Zetaris driver can reach it as liveops-gamedata:5432; the host port is bound to 127.0.0.1 only.
+# Set ZETARIS_DOCKER_NETWORK to your Zetaris deployment's network (see `docker network ls`).
 name: liveops-gamedata
 services:
   gamedata:
@@ -16,4 +17,4 @@ services:
 networks:
   zetaris:
     external: true
-    name: liveops-zetaris_default
+    name: ${ZETARIS_DOCKER_NETWORK:-liveops-zetaris_default}

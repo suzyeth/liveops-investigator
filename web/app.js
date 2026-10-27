@@ -50,7 +50,7 @@
 
  // Challenge dialog.
  function openReview(caseId,target,opts={}){
-  pending={caseId,target,ref:opts.ref||null};
+  pending={run:state.report.run,caseId,target,ref:opts.ref||null};
   const r=caseOf(caseId),form=$('#review form');form.reset();
   form.kind.value=opts.kind||'';
   form.compare.innerHTML='<option value="">(just record my note)</option>'+(state.comparisons[caseId]||[]).map(c=>`<option value="${esc(c.key)}">${esc(c.title)}: ${esc(c.question)}</option>`).join('');
@@ -66,7 +66,7 @@
   if(!f.kind.value){$('#review .error').textContent='Choose what kind of challenge this is.';return;}
   btn.disabled=true;btn.textContent='Checking…';
   try{
-   const out=await api('/api/reviews',{run:state.report.run,caseId:pending.caseId,target:pending.target,kind:f.kind.value,note:f.note.value,compare:f.kind.value==='missing'&&f.compare.value||null,ref:pending.ref});
+   const out=await api('/api/reviews',{run:pending.run,caseId:pending.caseId,target:pending.target,kind:f.kind.value,note:f.note.value,compare:f.kind.value==='missing'&&f.compare.value||null,ref:pending.ref});
    $('#review').close();show({...state,reviews:out.reviews,status:out.status,comparisons:out.comparisons});
    document.querySelector(`#case-${pending.caseId} .thread li:last-child`)?.scrollIntoView({behavior:'smooth',block:'center'});
   }catch(err){$('#review .error').textContent=err.message;}
