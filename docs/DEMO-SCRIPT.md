@@ -1,6 +1,6 @@
 # Demo video script
 
-Final length: **2:59** (limit 4:00). The submitted video records the local web app during a real run (run `2026-10-27T12-24-17-165Z`), made off-screen with a headless browser. The run queries the three Zetaris datasources and calls Meterless Nightshift and H-MEM; both reviewer challenges in the video are real requests that the agent answered live.
+Final length: **2:59** (limit 4:00). The prepared video records the local web app during a real run (run `2026-10-27T12-24-17-165Z`), made off-screen with a headless browser. The run queries the three Zetaris datasources and calls Meterless Nightshift and H-MEM; both reviewer challenges in the video are real requests that the agent answered live.
 
 A drawn cursor shows each click; the clicks themselves are real clicks on the running page. A title card and an architecture card open the video and a closing card ends it. Narration is synthesized English speech, with burned-in English subtitles. The scenario follows Pokémon GO's public Community Day format; all player and payment data is synthetic.
 
