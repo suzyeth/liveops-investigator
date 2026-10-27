@@ -1,44 +1,42 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {validateReview,assess,platformBreakdown,cohortBreakdown,sameRows} from './review.ts';
-import {cases,fakeResult} from './test-fixtures.ts';
-const report={run:'r',results:[fakeResult(cases[0]),fakeResult(cases[1])]};
-const platformRows=(c:any)=>c.platforms.map((r:any[])=>({period:r[0],platform:r[1],attempts:String(r[2]),successes:String(r[3])}));
+import {validateReview,assess,comparisons,dependsOn,sameRows} from './review.ts';
+// A recorded case in the shape pipeline.ts writes, trimmed to what reviews use.
+const step=(key:string,probe:string,rows:any[],metrics:any={})=>({key,probe,title:key,rows,sql:'SELECT 1',result:{metrics,summary:'',next:[],checks:[]}});
+const result={id:'payment-incident',
+ steps:[step('overview','overview',[{event_id:'cd_01',revenue:'1000'}]),
+  step('payment_by_provider','payment_by_provider',[{event_id:'cd_02',provider:'google_play',orders:'10'}],{stores:[{provider:'google_play'},{provider:'app_store'}]}),
+  step('payment_by_version:google_play','payment_by_version',[{event_id:'cd_02',app_version:'0.393.1',orders:'5'}]),
+  step('offer_changes','offer_changes',[{event_id:'cd_02',sku:'cd_ticket'}])],
+ hypotheses:[{id:'payment',evidence:['payment_by_provider','payment_by_version']},{id:'offer',evidence:['offer_changes']},{id:'mix',evidence:[]}]};
+const report={results:[result]};
 
-test('reviews are validated against the recorded evidence',()=>{
- assert.deepEqual(validateReview({caseId:'payment-incident',target:'payment',kind:'data',ref:{query:'checkout',period:'after',column:'successes'}},report).ref,{query:'checkout',period:'after',column:'successes'});
- assert.throws(()=>validateReview({caseId:'nope',target:'payment',kind:'data',note:'x'},report),/Unknown case/);
- assert.throws(()=>validateReview({caseId:'payment-incident',target:'payment',kind:'data',ref:{query:'checkout',period:'after',column:'password'}},report),/Reference/);
- assert.throws(()=>validateReview({caseId:'payment-incident',target:'payment',kind:'missing'},report),/comparison/);
+test('reviews are validated against the recorded steps',()=>{
+ assert.deepEqual(validateReview({caseId:'payment-incident',target:'payment_by_provider',kind:'data',ref:{step:'payment_by_provider',row:0,column:'orders'}},report).ref,{step:'payment_by_provider',row:0,column:'orders'});
+ assert.throws(()=>validateReview({caseId:'nope',target:'finding',kind:'distrust'},report),/Unknown case/);
+ assert.throws(()=>validateReview({caseId:'payment-incident',target:'finding',kind:'data',ref:{step:'overview',row:0,column:'constructor'}},report),/Reference/);
+ assert.throws(()=>validateReview({caseId:'payment-incident',target:'finding',kind:'data',ref:{step:'overview',row:'0',column:'revenue'}},report),/Reference/);
+ assert.throws(()=>validateReview({caseId:'payment-incident',target:'finding',kind:'missing'},report),/comparison/);
+ assert.throws(()=>validateReview({caseId:'payment-incident',target:'finding',kind:'missing',compare:'overview'},report),/not available/);
  assert.throws(()=>validateReview({caseId:'payment-incident',target:'finding',kind:'distrust',note:'x'.repeat(501)},report),/longer/);
 });
-test('disputed data marks every part of the analysis that rests on it',()=>{
- const s=assess('payment-incident',[{id:'R1',caseId:'payment-incident',kind:'data',target:'payment',ref:{query:'checkout'},resolved:false}]);
- assert.equal(s.payment.state,'data disputed');assert.equal(s.finding.state,'data disputed');
- assert.equal(s.config.state,'unchallenged');assert.equal(s.symptom.state,'unchallenged');
+test('comparisons offer only checks the case has not run',()=>{
+ const keys=comparisons(result).map(x=>x.key);
+ assert.ok(keys.includes('revenue_by_country'));assert.ok(keys.includes('payment_by_version:app_store'));
+ assert.ok(!keys.includes('payment_by_version:google_play'));assert.ok(!keys.includes('offer_changes'));
 });
-test('a rejected check disputes the finding, and resolved reviews no longer count',()=>{
- const open=assess('payment-incident',[{id:'R1',caseId:'payment-incident',kind:'distrust',target:'config',resolved:false}]);
- assert.equal(open.config.state,'disputed');assert.equal(open.finding.state,'disputed');
- const done=assess('payment-incident',[{id:'R1',caseId:'payment-incident',kind:'distrust',target:'config',resolved:true}]);
- assert.equal(done.finding.state,'unchallenged');
+test('disputed data marks every part of the analysis that rests on that step',()=>{
+ assert.deepEqual(dependsOn(result,'payment'),['payment_by_provider','payment_by_version:google_play']);
+ const s=assess(result,[{id:'R1',caseId:'payment-incident',kind:'data',target:'payment_by_version:google_play',ref:{step:'payment_by_version:google_play'},resolved:false}]);
+ assert.equal(s['payment_by_version:google_play'].state,'data disputed');assert.equal(s.payment.state,'data disputed');assert.equal(s.finding.state,'data disputed');
+ assert.equal(s.offer.state,'unchallenged');assert.equal(s.overview.state,'unchallenged');
 });
-test('platform split must add up to the funnel and shows where the payment drop is',()=>{
- const one=platformBreakdown(report.results[0].trace[2].rows,platformRows(cases[0]));
- assert.match(one.summary,/concentrated on android \(80% → 42\.5%\); ios held at 80%/);
- assert.match(platformBreakdown(report.results[1].trace[2].rows,platformRows(cases[1])).summary,/No platform/);
- const broken=platformRows(cases[0]);broken[3].successes='35';
- assert.throws(()=>platformBreakdown(report.results[0].trace[2].rows,broken),/does not add up/);
-});
-test('cohort split must add up to the overview and reports ties honestly',()=>{
- const [one,two]=report.results;
- assert.match(cohortBreakdown(one.trace[1].rows,one.overview).summary,/most for new players \(5% → 2%, -3 points\); returning 13\.3% → 12%/);
- assert.match(cohortBreakdown(two.trace[1].rows,two.overview).summary,/same 3\.3 points in each cohort/);
- const broken=one.trace[1].rows.map((r:any,i:number)=>i?r:{...r,payers:'21'});
- assert.throws(()=>cohortBreakdown(broken,one.overview),/reconcile/);
+test('a rejected hypothesis disputes the finding; resolved reviews no longer count',()=>{
+ const open=assess(result,[{id:'R1',caseId:'payment-incident',kind:'distrust',target:'offer',resolved:false}]);
+ assert.equal(open.offer.state,'disputed');assert.equal(open.finding.state,'disputed');
+ assert.equal(assess(result,[{id:'R1',caseId:'payment-incident',kind:'distrust',target:'offer',resolved:true}]).finding.state,'unchallenged');
 });
 test('re-query comparison ignores row order but not values',()=>{
- const rows=report.results[0].trace[0].rows;
- assert.equal(sameRows(rows,[...rows].reverse()),true);
- assert.equal(sameRows(rows,[{...rows[0],revenue:'999'},rows[1]]),false);
+ const rows=[{a:'1',b:'2'},{a:'3',b:'4'}];
+ assert.equal(sameRows(rows,[...rows].reverse()),true);assert.equal(sameRows(rows,[{a:'1',b:'2'},{a:'3',b:'5'}]),false);
 });

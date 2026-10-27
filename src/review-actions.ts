@@ -1,8 +1,9 @@
 import fs from 'node:fs';
 import {HMEM} from '../vendor/hmem/src/index.ts';
-import {cases} from './cases.ts';
-import {runQuery} from './pipeline.ts';
-import {validateReview,assess,platformBreakdown,cohortBreakdown,sameRows,DEPENDS} from './review.ts';
+import {PROBES} from './agent/probes.ts';
+import {CASES,context} from './agent/investigate.ts';
+import {query} from './pipeline.ts';
+import {validateReview,assess,comparisons,sameRows,dependsOn} from './review.ts';
 // Carries out a reviewer challenge against the real services and keeps the dialogue per run
 // in reports/<run>.reviews.json. Nothing here changes the recorded investigation itself.
 const RUN_ID=/^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z$/;
@@ -12,7 +13,7 @@ export function loadReport(run:string){
  if(typeof run!=='string'||!RUN_ID.test(run))throw Error('Invalid run id');
  if(!fs.existsSync(`reports/${run}.json`))throw Error('Unknown run');
  const report=JSON.parse(fs.readFileSync(`reports/${run}.json`,'utf8'));
- if(!report.results?.every((r:any)=>r.evidence))throw Error('This run predates the web app; run the investigation again');
+ if(report.version!==2)throw Error('This run predates the current investigation; run it again');
  return report;
 }
 export function loadReviews(run:string):any[]{
@@ -21,43 +22,53 @@ export function loadReviews(run:string):any[]{
 }
 export function reviewState(run:string){
  const report=loadReport(run),reviews=loadReviews(run);
- return {reviews,status:Object.fromEntries(report.results.map((r:any)=>[r.id,assess(r.id,reviews)]))};
+ return {reviews,status:Object.fromEntries(report.results.map((r:any)=>[r.id,assess(r,reviews)])),
+  comparisons:Object.fromEntries(report.results.map((r:any)=>[r.id,comparisons(r)]))};
 }
 function save(run:string,reviews:any[]){fs.writeFileSync(file(run),JSON.stringify(reviews,null,2));return reviewState(run);}
 
-async function requery(c:any,result:any,query:string){
- const recorded=result.trace.find((t:any)=>t.kind===query),fresh=await runQuery(c,query);
- const same=sameRows(recorded.rows,fresh.rows);
- return {action:'requery',query,same,ms:fresh.ms,sql:fresh.sql,rows:fresh.rows,
-  text:same?`Re-ran the ${query} query on Zetaris: it returned the same ${fresh.rows.length} rows as recorded, so the report shows what the query returns. The data are synthetic SQL fixtures, so a wrong value would have to be corrected there. Everything that rests on this query stays marked as disputed until the review is resolved.`
-   :`Re-ran the ${query} query on Zetaris and got different rows from the recorded ones. The recorded result no longer matches the source; run the investigation again.`};
+async function requery(step:any){
+ const fresh=await query(step.sql),same=sameRows(step.rows,fresh.rows);
+ return {action:'requery',step:step.key,same,ms:fresh.ms,sql:step.sql,rows:fresh.rows,
+  text:same?`Re-ran “${step.title}” on Zetaris: it returned the same ${fresh.rows.length} rows as recorded, so the report shows what the sources hold. If a source itself is wrong, it has to be corrected there; everything that rests on this step stays marked as disputed until the review is resolved.`
+   :`Re-ran “${step.title}” on Zetaris and got different rows from the recorded ones. The sources changed after the run; run the investigation again before relying on it.`};
 }
-async function compare(c:any,result:any,kind:string){
- const t=await runQuery(c,kind==='platform'?'platform':'cohorts');
- const breakdown=kind==='platform'?platformBreakdown(result.trace.find((x:any)=>x.kind==='checkout').rows,t.rows):cohortBreakdown(t.rows,result.overview);
- return {action:'compare',query:t.kind,ms:t.ms,sql:t.sql,rows:t.rows,breakdown,text:breakdown.summary};
+async function compare(result:any,key:string){
+ const c=comparisons(result).find(x=>x.key===key)!,probe=PROBES[c.probe];
+ const cs=CASES.find(x=>x.id===result.id);
+ if(!cs)throw Error('Unknown case');
+ const metrics=Object.fromEntries(result.steps.map((s:any)=>[s.probe,s.result.metrics]));
+ const sql=probe.sql(context(cs),c.params),{rows,ms}=await query(sql);
+ const out=probe.analyze(rows,context(cs),c.params,metrics);
+ const failed=out.checks.filter(x=>!x.ok);
+ if(failed.length)throw Error(`${probe.title}: ${failed.map(x=>x.label).join('; ')} failed`);
+ return {action:'compare',key,probe:c.probe,title:probe.title,sources:probe.sources,sql,rows,ms,result:out,text:out.summary};
 }
-// A rejected finding lowers the confidence of the evidence H-MEM stored for it and is logged in its ledger.
+// A rejected finding lowers the confidence of the lesson H-MEM stored for this case and is logged in its ledger.
 function distrust(run:string,result:any){
+ const id=result.memory?.stored?.id;
+ if(!id)return {action:'note',text:'Recorded. This case stored no lesson in H-MEM, so there is no memory to mark as wrong.'};
  const memory=new HMEM({persistDir:`.state/replays/${run}`,actor:'reviewer'});
- const record=memory.store.get(result.storedId);
- if(!record)throw Error('Stored evidence for this case is missing from H-MEM');
+ const record=memory.store.get(id);
+ if(!record)throw Error('The lesson for this case is missing from H-MEM');
  const before=record.confidence;
- memory.feedback(result.storedId,'wrong');
- const after=new HMEM({persistDir:`.state/replays/${run}`}).store.get(result.storedId)!;
- return {action:'memory',memoryId:result.storedId,before,after:after.confidence,tags:after.tags,
-  text:`Marked the evidence H-MEM stored for this case (${result.storedId}) as wrong: confidence ${before.toFixed(2)} → ${after.confidence.toFixed(2)}, tagged "review", and logged in the H-MEM ledger. This changes the stored record for this run only; it does not affect other runs. To check the finding a second way, ask for a comparison by platform or by player cohort.`};
+ memory.feedback(id,'wrong');
+ const after=new HMEM({persistDir:`.state/replays/${run}`}).store.get(id)!;
+ return {action:'memory',memoryId:id,before,after:after.confidence,tags:after.tags,
+  text:`Marked the lesson H-MEM stored for this case (${id}) as wrong: confidence ${before.toFixed(2)} → ${after.confidence.toFixed(2)}, tagged "review", and logged in the H-MEM ledger. This changes the stored record for this run only. To check the finding another way, ask for one of the comparisons this case has not run.`};
 }
 
 export async function submitReview(run:string,input:any){
  const report=loadReport(run),review=validateReview(input,report);
- const result=report.results.find((r:any)=>r.id===review.caseId),c=cases.find(x=>x.id===review.caseId);
- if(!c)throw Error('Unknown case');
+ const result=report.results.find((r:any)=>r.id===review.caseId);
  const responses:any[]=[];
- if(review.kind==='data')for(const q of review.ref?[review.ref.query]:DEPENDS[review.target])responses.push(await requery(c,result,q));
- if(review.compare)responses.push(await compare(c,result,review.compare));
+ if(review.kind==='data'){
+  const keys=review.ref?[review.ref.step]:dependsOn(result,review.target);
+  for(const k of keys)responses.push(await requery(result.steps.find((s:any)=>s.key===k)));
+ }
+ if(review.compare)responses.push(await compare(result,review.compare));
  if(review.kind==='distrust')responses.push(distrust(run,result));
- if(!responses.length)responses.push({action:'note',text:'Recorded. This prototype can also split payment by platform or split conversion by player cohort; other data is not available here yet.'});
+ if(!responses.length)responses.push({action:'note',text:`Recorded. Comparisons this case has not run yet: ${comparisons(result).map(x=>x.title).join(', ')||'none'}.`});
  const reviews=loadReviews(run);
  const id=`R${reviews.length+1}`;
  return {id,...save(run,[...reviews,{id,...review,at:new Date().toISOString(),resolved:false,responses}])};
