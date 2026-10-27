@@ -1,17 +1,18 @@
 import {parseMetric} from './investigation.ts';
 // Synthetic aggregate fixtures: one attempted purchase per player per period.
 export const cases = [
- {id:'payment-incident',title:'Case one: payment success drops',before:[1000,100,1000],after:[1500,90,900],funnel:[[500,125,100],[750,150,90]],config:[['v1',10,100],['v1',10,100]]},
- {id:'offer-regression',title:'Case two: similar symptoms, different evidence',before:[1500,120,1200],after:[1800,80,800],funnel:[[750,150,120],[900,100,80]],config:[['v1',10,100],['v2',10,60]]}
+ {id:'payment-incident',title:'Case one: payment success drops',before:[1000,100,1000],after:[1500,90,900],funnel:[[500,125,100],[750,150,90]],config:[['v1',10,100],['v1',10,100]],cohorts:[['before','new',400,20,200],['before','returning',600,80,800],['after','new',900,18,180],['after','returning',600,72,720]],platforms:[['before','ios',60,48],['before','android',65,52],['after','ios',70,56],['after','android',80,34]]},
+ {id:'offer-regression',title:'Case two: similar symptoms, different evidence',before:[1500,120,1200],after:[1800,80,800],funnel:[[750,150,120],[900,100,80]],config:[['v1',10,100],['v2',10,60]],cohorts:[['before','new',600,40,400],['before','returning',900,80,800],['after','new',900,30,300],['after','returning',900,50,500]],platforms:[['before','ios',70,56],['before','android',80,64],['after','ios',45,36],['after','android',55,44]]}
 ];
 function table(name:string,columns:string[],rows:any[][]){
  const literal=(v:any)=>typeof v==='number'?String(v):`'${String(v).replace(/'/g,"''")}'`;
  return `WITH ${name} AS (${rows.map((row,i)=>'SELECT '+row.map((v,j)=>literal(v)+(i===0?' AS '+columns[j]:'')).join(',')).join(' UNION ALL ')}) SELECT * FROM ${name}`;
 }
 export function sqlFor(c:any,kind:string){
- if(kind==='cohorts')return table('player_cohorts',['period','cohort','participants','payers','revenue'],c.id==='payment-incident'?[['before','new',400,20,200],['before','returning',600,80,800],['after','new',900,18,180],['after','returning',600,72,720]]:[['before','new',600,40,400],['before','returning',900,80,800],['after','new',900,30,300],['after','returning',900,50,500]]);
+ if(kind==='cohorts')return table('player_cohorts',['period','cohort','participants','payers','revenue'],c.cohorts);
  if(kind==='overview')return table('metrics',['period','participants','payers','revenue'],[['before',...c.before],['after',...c.after]]);
  if(kind==='checkout')return table('payment_funnel',['period','shop_views','attempts','successes'],c.funnel.map((r:any,i:number)=>[i?'after':'before',...r]));
+ if(kind==='platform')return table('payment_by_platform',['period','platform','attempts','successes'],c.platforms);
  if(kind==='offer')return table('event_config',['period','version','price','reward_units'],c.config.map((r:any,i:number)=>[i?'after':'before',...r]));
  throw Error('Unknown query');
 }

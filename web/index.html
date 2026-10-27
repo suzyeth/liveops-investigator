@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LiveOps Investigator</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<header class="top">
+ <div class="brand">LiveOps Investigator</div>
+ <div class="tags"><span>Zetaris SQL</span><span>Meterless Nightshift</span><span>Meterless H-MEM</span><span class="warn">Synthetic game data</span></div>
+</header>
+<main>
+ <section class="hero">
+  <p class="eyebrow">The question</p>
+  <h1>More players joined the live event. So why did revenue fall?</h1>
+  <p class="lede">A game team sees this after an event and has to explain it before the next one. A guess is easy to make and hard to check. LiveOps Investigator tests each possible explanation against SQL evidence, remembers what it found, and lets you challenge every step.</p>
+  <ol class="how">
+   <li><b>Measure</b><span>Zetaris runs the SQL behind every number on this page.</span></li>
+   <li><b>Choose where to look</b><span>H-MEM recalls earlier evidence. Nightshift's local model gives advice that is recorded but never decides.</span></li>
+   <li><b>Test and show</b><span>Each explanation is checked against a stated rule, with its data one click away.</span></li>
+   <li><b>Challenge</b><span>Dispute a number, ask for another comparison, or reject a finding. The agent re-queries and updates its memory.</span></li>
+  </ol>
+  <div class="runbar"><button id="run" class="primary">Run the investigation</button><span id="runinfo" class="muted">Loading…</span></div>
+  <p class="muted small">Runs two synthetic cases through Zetaris, Nightshift and H-MEM on this machine. It takes about half a minute.</p>
+ </section>
+ <section id="progress" class="block" hidden><h3>Live progress</h3><p class="status"></p><div class="steps"></div></section>
+ <div id="cases"></div>
+ <section class="block limits">
+  <h3>What this does not claim</h3>
+  <p>The game data is synthetic aggregate metrics written as inline SQL, not production telemetry. Findings show where to look next; they are not proof of cause. The order of checks comes from a fixed memory rule, both checks always run, and the model never produces a number or a verdict.</p>
+ </section>
+</main>
+<aside id="drawer" hidden><button class="close" data-close="1" aria-label="Close">×</button><div class="body"></div></aside>
+<dialog id="review">
+ <form method="dialog">
+  <h3>Challenge the analysis</h3>
+  <p class="about muted"></p>
+  <fieldset>
+   <label><input type="radio" name="kind" value="data"> The data looks wrong <span class="muted">The agent re-runs the query on Zetaris and marks everything that rests on it.</span></label>
+   <label><input type="radio" name="kind" value="missing"> Something is missing <span class="muted">Ask for another comparison to check the finding a second way.</span></label>
+   <label><input type="radio" name="kind" value="distrust"> I don't trust this <span class="muted">The finding is marked disputed and the evidence H-MEM stored for it loses confidence.</span></label>
+  </fieldset>
+  <div class="compare"><label>Compare by <select name="compare"><option value="">(just record my note)</option><option value="platform">platform (iOS / Android)</option><option value="cohort">player cohort (new / returning)</option></select></label></div>
+  <label class="note">What do you see? <textarea name="note" rows="3" maxlength="500" placeholder="For example: this looks too low for a weekend event"></textarea></label>
+  <p class="error"></p>
+  <div class="actions"><button type="button" class="ghost" data-close="1">Cancel</button><button type="submit" class="primary">Send to the agent</button></div>
+ </form>
+</dialog>
+<script src="/charts.js"></script>
+<script src="/render.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>
