@@ -110,7 +110,7 @@ Legacy single-case code remains available through `npm run demo:legacy`.
 - **Meterless Nightshift** is the AI provider. The workflow calls its local OpenAI-compatible endpoint with the `meterless/local` routing mode for a constrained investigation-priority suggestion.
 - **Meterless H-MEM** is the memory engine. Each case stores attributed evidence, and the next case reopens the store from disk to choose its query order before fresh evidence is checked.
 - **NVIDIA:** the local model, Llama 3.2 1B Instruct, runs under Nightshift on an NVIDIA RTX 4060 Laptop GPU through CUDA. NVIDIA Nemotron is not used.
-- **Cursor** was not used.
+- **Cursor** was used as the code editor during development. It is not part of the running workflow.
 - **What is distinctive:** memory changes where the investigation looks first, but it is never accepted as the answer. Case two follows the remembered payment lead, finds it contradicted by fresh evidence, and moves to the offer change instead.
 
 Pre-existing components: the vendored H-MEM reference implementation. The first project commit is dated 2026-10-26, inside the build window.
