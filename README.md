@@ -15,6 +15,8 @@ More players does not always mean more revenue. LiveOps Investigator runs two sy
 5. Validate counts and compute evidence-based hypothesis checks.
 6. Persist attributed evidence, reopen memory, and generate an auditable HTML report.
 
+It runs as a local web app. The page states the question, streams each step of a live run, and shows every finding as a chain of evidence: the rule it was tested against, a chart, and the numbers behind it, each of which opens the SQL row it came from. A person can then challenge any part of the analysis, and the agent answers with new evidence (see [Use the web app](#use-the-web-app)).
+
 The current workflow uses deterministic routing and calculations. Nightshift advises on priorities; it does not generate SQL, control execution, or establish causality. No successful result is fabricated when a service fails.
 
 ## Two cases
@@ -40,6 +42,11 @@ flowchart TD
   H --> I[H-MEM: persist sourced evidence]
   I --> J[HTML and JSON report]
   F --> J
+  J --> K[Web app: evidence chain and charts]
+  K --> L[Reviewer challenge]
+  L -->|data looks wrong| B2[Zetaris: re-run the query]
+  L -->|compare more data| B3[Zetaris: platform or cohort split]
+  L -->|finding not trusted| I2[H-MEM feedback: lower confidence]
 ```
 
 ## Requirements
@@ -58,10 +65,10 @@ Copy-Item .env.example .env.local
 # Do not overwrite an existing configured .env.local.
 npm test
 npm run verify -- --chat
-npm run demo
+npm run app
 ```
 
-Open `reports/demo.html` after success. On Windows, double-click **Run-Demo.cmd** to run the workflow and open the report automatically. The launcher expects dependencies and services to be ready; it does not install or start them.
+`npm run app` serves the web app at `http://127.0.0.1:4317/` (set `APP_PORT` to change it); open it and click **Run the investigation**. On Windows, double-click **Run-App.cmd** to start it and open the browser. `npm run demo` runs the same investigation in the terminal and writes `reports/demo.html`; **Run-Demo.cmd** runs that and opens the report. The launcher expects dependencies and services to be ready; it does not install or start them.
 
 Configuration:
 
@@ -76,6 +83,27 @@ Configuration:
 
 Login credentials take precedence over the token alternative. H-MEM persistence is under `.state/replays/<run timestamp>`. Each demo starts a fresh replay; case two reopens the same store created by case one. This avoids contamination by future cases from earlier replays.
 
+## Use the web app
+
+Each case reads top to bottom:
+
+1. **Finding**, in plain words, derived from the checks below it. It says where to look next, not what caused the drop.
+2. **The symptom**: players, paying players, and revenue before and after the event.
+3. **Where it looked first, and why**: the records H-MEM recalled, the routing rule, the order actually run, and Nightshift's advisory suggestion.
+4. **Testing each explanation**: payment success against the five-point rule, and a before/after diff of the event offer, each with a verdict. Every number is a link to its source row.
+5. **Consistency checks**: cohort totals and payment counts that had to reconcile for the run to continue.
+6. **Reviews and follow-up checks**, then the full list of SQL executed.
+
+Challenges are recorded per run in `reports/<run>.reviews.json`:
+
+| Challenge | What the agent does |
+| --- | --- |
+| The data looks wrong (on a check, or on one number from the evidence panel) | Re-runs the query on Zetaris and reports whether the source still returns the recorded rows. Everything that rests on that query is marked "data disputed". |
+| Something is missing | Runs another comparison as a new Zetaris query: payment success by platform (which must add up to the payment funnel) or conversion by player cohort. |
+| I don't trust this | Marks the finding disputed and calls H-MEM `feedback(id, 'wrong')` on the evidence stored for that case, which lowers its confidence by 0.2, tags it `review`, and logs the change in the H-MEM ledger. |
+
+A challenged finding stays flagged until its reviews are marked resolved. The server listens only on `127.0.0.1` and rejects requests from other origins.
+
 ## Inspect the evidence
 
 The report includes each executed SQL statement, returned rows, timing, model routing suggestion, memory provenance, and deterministic findings. All report text, logs, and docs are in English.
@@ -84,7 +112,7 @@ Fixtures are SQL CTEs evaluated by Zetaris, not production tables or persistent 
 
 ## Validation and limitations
 
-Thirteen automated tests cover metric handling, rejection of blank, non-numeric, or version-less evidence, model-reply validation, cohort and payment-count reconciliation, the memory-routing rule, endpoint normalization, and authentication behavior. Both cases have also completed with actual Zetaris, Nightshift, and H-MEM calls on the development machine. Tests alone do not establish live-service availability; use `npm run verify -- --chat` and `npm run demo` for that.
+Twenty-four automated tests cover the evidence chain (every number traced to its query, period, and column; findings that must agree with the computed verdicts), challenge validation and status, the platform split's reconciliation, metric handling, rejection of blank, non-numeric, or version-less evidence, model-reply validation, cohort and payment-count reconciliation, the memory-routing rule, endpoint normalization, and authentication behavior. Both cases have also completed with actual Zetaris, Nightshift, and H-MEM calls on the development machine. Tests alone do not establish live-service availability; use `npm run verify -- --chat` and `npm run demo` for that.
 
 A 1B model produced incorrect metric explanations during development. Consequently, model output is constrained to two allowed priority IDs and is validated; numerical findings come from code. Invalid model output fails the run. Model suggestions are advisory, and the supplied examples do not establish general model quality.
 
@@ -92,7 +120,10 @@ Configuration changes can coincide with conversion changes without causing them.
 
 ## Repository map
 
-- `src/workflow.ts`: current two-case orchestration
+- `src/app.ts`, `web/`: local web app (server, page, charts)
+- `src/pipeline.ts`: the two-case investigation, shared by the web app and `src/workflow.ts` (terminal)
+- `src/evidence.ts`: derivation shown on the page, with a source reference for every number
+- `src/review.ts`, `src/review-actions.ts`: reviewer challenges and the agent's follow-up queries
 - `src/cases.ts`: fixtures, SQL, validation, and memory routing
 - `src/providers.ts`: Zetaris and Nightshift adapters
 - `src/workflow-report.ts`: report renderer
@@ -108,7 +139,7 @@ Legacy single-case code remains available through `npm run demo:legacy`.
 
 - **Zetaris** is the data layer. Every piece of evidence in the report is a SQL statement executed through the Zetaris web API with login authentication, and the report shows each statement, its returned rows, and its timing. The game data is inline SQL fixtures, not a connected production source.
 - **Meterless Nightshift** is the AI provider. The workflow calls its local OpenAI-compatible endpoint with the `meterless/local` routing mode for a constrained investigation-priority suggestion.
-- **Meterless H-MEM** is the memory engine. Each case stores attributed evidence, and the next case reopens the store from disk to choose its query order before fresh evidence is checked.
+- **Meterless H-MEM** is the memory engine. Each case stores attributed evidence, and the next case reopens the store from disk to choose its query order before fresh evidence is checked. When a reviewer rejects a finding, H-MEM's feedback API lowers the confidence of the stored evidence and records the change in its ledger.
 - **NVIDIA:** the local model, Llama 3.2 1B Instruct, runs under Nightshift on an NVIDIA RTX 4060 Laptop GPU through CUDA. NVIDIA Nemotron is not used.
 - **Cursor** was used as the code editor during development. It is not part of the running workflow.
 - **What is distinctive:** memory changes where the investigation looks first, but it is never accepted as the answer. Case two follows the remembered payment lead, finds it contradicted by fresh evidence, and moves to the offer change instead.

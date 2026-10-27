@@ -16,7 +16,8 @@ npm test                      # node:test via tsx, all src/*.test.ts
 npx tsx --test src/cases.test.ts            # single test file
 npx tsx --test --test-name-pattern="reconcile" src/cases.test.ts   # single test by name
 npm run verify -- --chat      # live connectivity: H-MEM, Zetaris SELECT, Nightshift models + chat; writes reports/connectivity.json
-npm run demo                  # the real two-case workflow (src/workflow.ts); writes reports/demo.html
+npm run app                   # local web app on 127.0.0.1:4317 (src/app.ts + web/); Run-App.cmd starts it and opens the browser
+npm run demo                  # the same investigation in the terminal (src/workflow.ts); writes reports/demo.html
 npm run demo:legacy           # older single-case flow (src/demo.ts + report.ts)
 ```
 
@@ -25,7 +26,7 @@ npm run demo:legacy           # older single-case flow (src/demo.ts + report.ts)
 - `Run-Demo.cmd` is the Windows launcher: runs `npm run demo` and opens `reports/demo.html` only on success.
 - `src/nightshift-local-setup.mjs` is a local admin helper that talks to the Nightshift control socket; it is not part of the workflow.
 
-## Architecture (src/workflow.ts is the entry point)
+## Architecture (src/pipeline.ts holds the investigation; src/app.ts and src/workflow.ts are its two front ends)
 
 Per case in `cases.ts`, the workflow runs this fixed pipeline; every step that can fail throws, which aborts the whole run with exit code 1 and leaves the previous `reports/demo.html` untouched:
 
@@ -35,23 +36,27 @@ Per case in `cases.ts`, the workflow runs this fixed pipeline; every step that c
 4. **Nightshift chat** is asked for a priority order; the reply must regex-match `["checkout","offer"]` or the reverse, otherwise the run fails. The suggestion is only recorded in the report; it never changes execution.
 5. **Zetaris `checkout` + `offer`** in the planned order → `evaluate()` validates funnel/config rows against overview metrics and computes `paymentDrop` (success rate fell by more than 5 percentage points) and `configChanged`.
 6. **H-MEM persist**: a `factual` record tagged `payment-drop` or `payment-healthy`, then a fresh HMEM instance reopens the store from disk to verify it is retrievable.
-7. `renderWorkflow()` (`workflow-report.ts`) writes `reports/<run>.json`, `reports/latest.json`, `reports/demo.html`.
+7. `explain()` (`evidence.ts`) rebuilds each case's derivation from the trace rows, with a `{query,period,column}` ref on every number, and throws if it disagrees with `evaluate()`. The finding sentence is generated here from the numbers.
+8. `renderWorkflow()` (`workflow-report.ts`) writes `reports/<run>.json`, `reports/latest.json`, `reports/demo.html`.
+
+Web app (`src/app.ts`, `web/`): plain `node:http`, bound to 127.0.0.1, rejects any Host other than `127.0.0.1:<port>`/`localhost:<port>` and any POST whose Origin is not that host. One run at a time; progress events are buffered and replayed over SSE (`/api/events`). Front end is vanilla JS building HTML strings; every interpolated value must go through `esc()`.
+
+Reviewer challenges (`review.ts` pure, `review-actions.ts` side effects) are stored in `reports/<run>.reviews.json`: `data` re-runs the query on Zetaris and compares rows; `missing` with `compare` runs `platform` (new fixture, must sum to the checkout funnel) or `cohorts`; `distrust` calls H-MEM `feedback(storedId,'wrong')` in `.state/replays/<run>`. `assess()` maps open reviews onto the parts of a case through `DEPENDS` (which queries each part rests on).
 
 Key design facts that span files:
 
-- **All "data" is SQL fixtures**: `sqlFor()` in `cases.ts` turns the in-code arrays into `WITH ... UNION ALL` CTEs that Zetaris evaluates. Fixtures assume one purchase attempt per player per period, so `successes` must equal overview `payers`; the row-count check in `workflow.ts` (`expected = kind==='cohorts' ? 4 : 2`) and `evaluate()` enforce these invariants. Changing a fixture means re-checking every invariant and the hardcoded narrative paragraph in `workflow-report.ts`.
+- **All "data" is SQL fixtures**: `sqlFor()` in `cases.ts` turns the in-code arrays into `WITH ... UNION ALL` CTEs that Zetaris evaluates. Fixtures assume one purchase attempt per player per period, so `successes` must equal overview `payers`; the row-count check in `pipeline.ts` (`EXPECTED_ROWS`: 4 for cohorts and platform, else 2) and `evaluate()` enforce these invariants. Changing a fixture means re-checking every invariant (including that `platforms` sums to `funnel`), the hardcoded paragraph in `workflow-report.ts`, and the finding wording tests in `evidence.test.ts`.
 - **Strict cell parsing**: Zetaris returns every cell as a string. `parseMetric()` in `investigation.ts` accepts only numbers or non-negative decimal strings, and `evaluate()` requires a non-blank config `version`; blank, boolean, or missing cells fail the run instead of becoming 0. Reconciliation lives in `reconcileCohorts()`, which skips when revenue did not drop.
 - **Memory isolation**: each `npm run demo` creates `.state/replays/<timestamp>/`; case two reads the store case one wrote in the same replay. The legacy demo uses `.state/liveops-v1/` instead. `.state/` is gitignored.
 - **Providers** (`providers.ts`): `loadConfig()` reads `.env` then `.env.local` without overriding already-set vars (so `.env` wins over `.env.local`). `zetarisQuery()` logs in with username/password on every call when both are set, else uses `ZETARIS_API_KEY` + `ZETARIS_ORG_ID`; base URL must be a bare origin. `nightshiftToken()` falls back to the Windows `%LOCALAPPDATA%\ai.meterless.runtime\proxy-token` file. `normalizeNightshift()` always yields `<origin>/v1`.
-- **vendor/hmem/** is the upstream H-MEM reference (Apache-2.0, Meterless/Meterless commit `1742dec…`). Treat as external: do not modify; the workflow only uses `HMEM.add()`, `HMEM.query()`, and `ledger.history()`. Embeddings are a deterministic hash, so recall scores are reproducible.
-- Everything submitted is English: report text, console logs, case titles, README, docs, and the demo script. Keep it that way. The explanatory paragraphs in `workflow-report.ts` are keyed on case id, not derived from the numbers.
+- **vendor/hmem/** is the upstream H-MEM reference (Apache-2.0, Meterless/Meterless commit `1742dec…`). Treat as external: do not modify; the code uses `HMEM.add()`, `HMEM.query()`, `HMEM.feedback()`, `store.get()`, and `ledger.history()`. Embeddings are a deterministic hash, so recall scores are reproducible.
+- Everything submitted is English: report text, console logs, case titles, README, docs, and the demo script. Keep it that way. The paragraphs in `workflow-report.ts` (the static demo.html) are keyed on case id; the web app's finding text comes from `evidence.ts` and is derived from the numbers.
 
 ## Known gaps (found in the 2026-10-26 review; not yet fixed)
 
 - The Nightshift prompt carries no case numbers and its first example literal is `["checkout","offer"]`; `parsePriorities()` takes the first match, so an echoed prompt passes. Recorded raw replies (`model.attempts` in the report JSON) show the 1B model often echoes both options. The workflow retries up to 3 times before failing.
 - In this environment Nightshift was installed from the Codex app, so its `proxy-token` lives under `%LOCALAPPDATA%\Packages\OpenAI.Codex_*\LocalCache\Local\ai.meterless.runtime\`, not the path `nightshiftToken()` checks. Pass it via `NIGHTSHIFT_TOKEN` (only with the user's approval to read it), or `npm run demo` fails with "unauthorized".
 - `nightshiftChat()` falls back to `meterless/auto` when `NIGHTSHIFT_MODEL` is unset; README implies `meterless/local`. `ZETARIS_ENGINE_ID` in `.env.example` is never read.
-- `sqlFor('cohorts')` gives any non-`payment-incident` case the offer-regression cohort rows, so a third case needs its own branch.
 - `demo` and `demo:legacy` overwrite the same `reports/demo.html` and `reports/latest.json` with different JSON shapes.
 
 ## Repo hygiene
