@@ -5,8 +5,9 @@ const Render=(()=>{
  const pct=x=>x===null||x===undefined?'n/a':`${Math.round(x*1000)/10}%`;
  const usd=x=>`$${Math.round(x).toLocaleString('en-US')}`;
  const num=x=>Number(x).toLocaleString('en-US');
- const SHORT={cd_ticket:'Ticket',cd_box_web:'Box',coins_550:'550 coins',coins_1200:'1,200 coins',coins_2500:'2,500 coins',coins_5200:'5,200 coins',coins_14500:'14,500 coins'};
- const SOURCE={game_telemetry:'Game telemetry',payments:'Payment gateway',liveops:'Live-ops config'};
+ const signed=x=>`${x>=0?'+':'-'}$${Math.round(Math.abs(x)).toLocaleString('en-US')}`;
+ const SHORT={cd_ticket:'Ticket',cd_box_web:'Box',coins_100:'100 coins',coins_550:'550 coins',coins_1200:'1,200 coins',coins_2500:'2,500 coins',coins_5200:'5,200 coins',coins_14500:'14,500 coins'};
+ const SOURCE={game_telemetry:'Game telemetry',payments:'Purchase log',liveops:'Live-ops config'};
  const KIND={data:'The data looks wrong',missing:'Something is missing',distrust:'I don’t trust this'};
  const STATE={'data disputed':'Data disputed','disputed':'Disputed by a reviewer','needs more evidence':'More evidence requested'};
  const flag=s=>s&&s.state!=='unchallenged'?`<span class="badge warn" title="${esc(s.reasons.join('\n'))}">${esc(STATE[s.state])}</span>`:'';
@@ -15,8 +16,10 @@ const Render=(()=>{
 
  // One chart per kind of check, drawn from the metrics the server computed.
  function chart(probe,m){
-  if(probe==='overview')return `<div class="trio">${[['Players','participants',num],['Paying players','payers',num],['Revenue','revenue',usd]].map(([t,k,f])=>`<figure class="mini"><figcaption>${t}</figcaption>${bars([{label:'',before:m.before[k],after:m.after[k]}],{format:f})}</figure>`).join('')}</div>${legend()}`;
-  if(probe==='revenue_by_product')return bars([...m.items].sort((a,b)=>Math.abs(b.delta)-Math.abs(a.delta)).slice(0,5).map(x=>({label:SHORT[x.sku]||x.sku,before:x.before,after:x.after})),{format:usd,label:'Revenue by product'})+legend();
+  if(probe==='overview')return `<div class="trio">${[['Players','participants',num],['Paying players','payers',num],['Revenue','revenue',usd]].map(([t,k,f])=>`<figure class="mini"><figcaption>${t}</figcaption>${bars([{label:'',before:m.before[k],after:m.after[k]}],{format:f})}</figure>`).join('')}</div>${legend()}
+   <table class="split"><tr><th>Revenue change, split</th><th></th></tr><tr><td>More players</td><td>${signed(m.split.players)}</td></tr><tr><td>Payer conversion ${pct(m.before.conversion)} → ${pct(m.after.conversion)}</td><td>${signed(m.split.conversion)}</td></tr><tr><td>Spend per payer $${m.before.arppu.toFixed(2)} → $${m.after.arppu.toFixed(2)}</td><td>${signed(m.split.spend)}</td></tr><tr class="total"><td>Expected from the turnout ${usd(m.expected)} · actual ${usd(m.after.revenue)}</td><td>${m.shortfall>0?`shortfall ${usd(m.shortfall)}`:'no shortfall'}</td></tr></table>`;
+  if(probe==='payment_loss')return bars([{label:`${m.provider} paid share of order value`,before:m.before.paid/m.before.value,after:m.after.paid/m.after.value}],{format:pct,max:1,label:'Paid share of order value'})+legend();
+  if(probe==='revenue_by_product')return bars([...m.items].sort((a,b)=>a.gap-b.gap).slice(0,5).map(x=>({label:SHORT[x.sku]||x.sku,before:x.expected,after:x.after})),{format:usd,label:'Revenue by product, expected and actual'})+legend('Expected from turnout and mix','Actual');
   if(probe==='payment_by_provider')return bars(m.stores.map(s=>({label:s.provider,before:s.before,after:s.after})),{format:pct,max:1,label:'Order success by store'})+legend();
   if(probe==='payment_by_version')return bars(m.builds.map(b=>({label:b.version,before:m.baseline,after:b.rate})),{format:pct,max:1,label:'Order success by build'})+legend(`${m.provider}, event before`,'This build, event after');
   if(probe==='error_codes'){
@@ -50,8 +53,9 @@ const Render=(()=>{
  }
  function hypotheses(r,st){
   const stepOf=p=>r.steps.filter(s=>s.probe===p).map(s=>s.n);
-  return `<table class="verdicts"><tr><th>Explanation</th><th>Verdict</th><th>Evidence</th><th></th></tr>${r.hypotheses.map(h=>`<tr><td>${esc(h.label)}</td><td>${verdict(h.status)} ${flag(st[h.id])}</td>
-   <td>${h.evidence.flatMap(stepOf).map(n=>`<a href="#step-${esc(r.id)}-${esc(r.steps[n-1].key)}">step ${n}</a>`).join(', ')||'none'}</td><td>${challenge(r.id,h.id,'Challenge')}</td></tr>`).join('')}</table>`;
+  const a=r.attribution,share=x=>a.shortfall?`${Math.round(x/a.shortfall*100)}%`:'';
+  return `<table class="verdicts"><tr><th>Explanation</th><th>Verdict</th><th>Estimated</th><th>Evidence</th><th></th></tr>${r.hypotheses.map(h=>`<tr><td>${esc(h.label)}</td><td>${verdict(h.status)} ${flag(st[h.id])}</td><td>${h.dollars>0?`${usd(h.dollars)} <span class="muted">${share(h.dollars)}</span>`:'–'}</td>
+   <td>${h.evidence.flatMap(stepOf).map(n=>`<a href="#step-${esc(r.id)}-${esc(r.steps[n-1].key)}">step ${n}</a>`).join(', ')||'none'}</td><td>${challenge(r.id,h.id,'Challenge')}</td></tr>`).join('')}${a.shortfall>0?`<tr class="total"><td>${a.overlap?'Estimates exceed the shortfall by (overlap and noise)':'Not explained by these checks'}</td><td></td><td>${a.overlap?usd(a.explained-a.shortfall):`${usd(a.unexplained)} <span class="muted">${share(a.unexplained)}</span>`}</td><td colspan="2" class="muted">of a ${usd(a.shortfall)} shortfall</td></tr>`:''}</table>`;
  }
  function memory(r){
   const m=r.memory,lessons=m.lessons.length?m.lessons.map(l=>`<code>${esc(l.id)}</code>: start with <b>${esc(l.lead)}</b>`).join('<br>'):'None. This is the first case in this run.';
