@@ -19,7 +19,7 @@ Hard deadline: **2026-10-27 23:45 UTC** (official event page, Open Agent Hackath
 
 ## Submission requirements (official rules, section 6)
 
-- [x] Demo video produced (2:47, English throughout, from run 2026-10-27T08-04-44-493Z; local file reports/submission/liveops-demo.mp4, not uploaded)
+- [x] Demo video produced (2:33, recording of live run 2026-10-27T08-45-40-399Z and its report, English throughout; local file reports/submission/liveops-demo.mp4, not uploaded)
 - [x] Slide deck produced (12 slides covering every item in rule 6.2; export to PDF or PPTX for upload)
 - [x] GitHub repository link: https://github.com/suzyeth/liveops-investigator
 - [ ] Integration explanation (README "Sponsor technology" section can be pasted)
