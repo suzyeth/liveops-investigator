@@ -44,7 +44,7 @@ Key design facts that span files:
 - **Memory isolation**: each `npm run demo` creates `.state/replays/<timestamp>/`; case two reads the store case one wrote in the same replay. The legacy demo uses `.state/liveops-v1/` instead. `.state/` is gitignored.
 - **Providers** (`providers.ts`): `loadConfig()` reads `.env` then `.env.local` without overriding already-set vars (so `.env` wins over `.env.local`). `zetarisQuery()` logs in with username/password on every call when both are set, else uses `ZETARIS_API_KEY` + `ZETARIS_ORG_ID`; base URL must be a bare origin. `nightshiftToken()` falls back to the Windows `%LOCALAPPDATA%\ai.meterless.runtime\proxy-token` file. `normalizeNightshift()` always yields `<origin>/v1`.
 - **vendor/hmem/** is the upstream H-MEM reference (Apache-2.0, Meterless/Meterless commit `1742dec…`). Treat as external: do not modify; the workflow only uses `HMEM.add()`, `HMEM.query()`, and `ledger.history()`. Embeddings are a deterministic hash, so recall scores are reproducible.
-- Report text is Chinese; README, docs, and the demo script are English. The explanatory paragraphs in `workflow-report.ts` are keyed on case id, not derived from the numbers.
+- Everything submitted is English: report text, console logs, case titles, README, docs, and the demo script. Keep it that way. The explanatory paragraphs in `workflow-report.ts` are keyed on case id, not derived from the numbers.
 
 ## Known gaps (found in the 2026-10-26 review; not yet fixed)
 

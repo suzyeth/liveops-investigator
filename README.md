@@ -78,7 +78,7 @@ Login credentials take precedence over the token alternative. H-MEM persistence 
 
 ## Inspect the evidence
 
-The report includes each executed SQL statement, returned rows, timing, model routing suggestion, memory provenance, and deterministic findings. Its current presentation is bilingual/Chinese; this README and the narration script are English.
+The report includes each executed SQL statement, returned rows, timing, model routing suggestion, memory provenance, and deterministic findings. All report text, logs, and docs are in English.
 
 Fixtures are SQL CTEs evaluated by Zetaris, not production tables or persistent data-source integrations. Counts assume at most one purchase attempt per player per period. Payment successes must equal payers, and cohort totals must reconcile with overview metrics. A decline exceeding five percentage points flags a payment-success issue; this is a demonstration rule, not a significance test.
 

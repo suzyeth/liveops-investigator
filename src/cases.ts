@@ -1,8 +1,8 @@
 import {parseMetric} from './investigation.ts';
 // Synthetic aggregate fixtures: one attempted purchase per player per period.
 export const cases = [
- {id:'payment-incident',title:'案例一：支付成功率下降',before:[1000,100,1000],after:[1500,90,900],funnel:[[500,125,100],[750,150,90]],config:[['v1',10,100],['v1',10,100]]},
- {id:'offer-regression',title:'案例二：相似症状，不同证据',before:[1500,120,1200],after:[1800,80,800],funnel:[[750,150,120],[900,100,80]],config:[['v1',10,100],['v2',10,60]]}
+ {id:'payment-incident',title:'Case one: payment success drops',before:[1000,100,1000],after:[1500,90,900],funnel:[[500,125,100],[750,150,90]],config:[['v1',10,100],['v1',10,100]]},
+ {id:'offer-regression',title:'Case two: similar symptoms, different evidence',before:[1500,120,1200],after:[1800,80,800],funnel:[[750,150,120],[900,100,80]],config:[['v1',10,100],['v2',10,60]]}
 ];
 function table(name:string,columns:string[],rows:any[][]){
  const literal=(v:any)=>typeof v==='number'?String(v):`'${String(v).replace(/'/g,"''")}'`;
@@ -40,8 +40,8 @@ export function evaluate(funnel:any[],config:any[],overview:any){
  const paymentDrop=before!==null&&after!==null&&after<before-0.05;
  const configChanged=cb.version!==ca.version||cb.price!==ca.price||cb.reward_units!==ca.reward_units;
  return {before,after,intentBefore,intentAfter,paymentDrop,configChanged,
- checkout:before===null||after===null?'证据不足：没有支付尝试':paymentDrop?'支持支付环节异常：成功率明显下降；尚不能确定具体故障原因':'本次不支持支付成功率下降假设',
- offer:configChanged?'发现配置变更：需通过对照实验验证其影响':'配置未改变：不支持配置变更假设',
+ checkout:before===null||after===null?'Insufficient evidence: no payment attempts':paymentDrop?'Payment-stage issue supported: success rate fell sharply; the specific fault is not yet identified':'Payment-success drop not supported in this case',
+ offer:configChanged?'Config change found: its impact needs a controlled comparison':'Config unchanged: config-change hypothesis not supported',
  rewardBefore:cb.reward_units,rewardAfter:ca.reward_units};
 }
 // The model may only return the two allowed IDs, in some order; anything else is rejected.

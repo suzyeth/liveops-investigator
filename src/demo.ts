@@ -21,12 +21,12 @@ try{
  const prior=memory.query('Synthetic game weekend event revenue conversion investigation',{threshold:0.1,topN:3});
  console.log(`[H-MEM] Recalled ${prior.memories.length} previous records`);
  console.log('[Nightshift] Analysing evidence');
- const options:any={acquisition:{hypothesis:'新增流量的购买意愿可能较低',test:'按获客渠道对比新玩家付费漏斗；检查渠道构成变化。'},checkout:{hypothesis:'购买流程可能存在摩擦或支付失败',test:'对比活动前后商店曝光、点击、下单、支付成功率及错误日志。'},offer:{hypothesis:'活动商品或奖励的吸引力可能下降',test:'核对活动配置变更、商品曝光与购买率；设计受控实验。'}};
+ const options:any={acquisition:{hypothesis:'New traffic may have lower purchase intent',test:'Compare the new-player payment funnel by acquisition channel; check for a shift in channel mix.'},checkout:{hypothesis:'The purchase flow may have friction or payment failures',test:'Compare shop views, clicks, orders, payment success and error logs before and after the event.'},offer:{hypothesis:'The event offer or reward may have become less attractive',test:'Check event config changes, offer exposure and purchase rate; design a controlled experiment.'}};
  let analysis:any;
  for(let attempt=0;attempt<3;attempt++){
   const response=await nightshiftChat(`Choose two investigation hypotheses. Return ONLY a JSON array of two different IDs from ["acquisition","checkout","offer"]. No explanation. acquisition=traffic quality; checkout=payment friction; offer=reward attractiveness. Revenue and conversion declined, ARPPU stayed flat. New participants rose; returning participants stayed flat. Evidence: ${facts}\nHistorical evidence available: ${prior.memories.length} record(s). ${prior.context}\nOutput format: ["acquisition","checkout"]`);
   const match=response.content.match(/\[\s*"(?:acquisition|checkout|offer)"\s*,\s*"(?:acquisition|checkout|offer)"\s*\]/);
-  if(match){const ids=JSON.parse(match[0]);if(new Set(ids).size===2){analysis={model:response.model,selected:ids,validation:'allowlisted hypothesis IDs only; no model-generated numeric claims accepted',content:ids.map((key:string)=>`${options[key].hypothesis}（待验证）\n验证数据：${options[key].test}`).join('\n\n')+'\n\n下一步：先收集对应漏斗和配置数据，再决定是否实验或回滚。',raw:response.content};break;}}
+  if(match){const ids=JSON.parse(match[0]);if(new Set(ids).size===2){analysis={model:response.model,selected:ids,validation:'allowlisted hypothesis IDs only; no model-generated numeric claims accepted',content:ids.map((key:string)=>`${options[key].hypothesis} (to be verified)\nEvidence needed: ${options[key].test}`).join('\n\n')+'\n\nNext step: collect the matching funnel and config data before deciding whether to experiment or roll back.',raw:response.content};break;}}
  }
  if(!analysis)throw Error('Nightshift failed structured hypothesis validation after 3 attempts');
  const source='synthetic:weekend-v1:sha256:'+crypto.createHash('sha256').update(facts).digest('hex');
