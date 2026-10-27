@@ -58,7 +58,7 @@ function fakeQuery(answers:[string,any[]][]){
 }
 const overview=rows(['event_id','participants','payers','revenue'],[['cd_01',1000,100,1000],['cd_02',1500,90,850]]);
 const healthy=rows(['event_id','provider','orders','completed_orders','canceled_orders','attempts','ok_attempts'],[['cd_01','app_store',400,376,10,410,376],['cd_02','app_store',420,395,10,430,395]]);
-const products=rows(['event_id','sku','name','kind','price_usd','orders','revenue'],[['cd_01','coins_550','550','coins','4.99',1,1000],['cd_02','coins_550','550','coins','4.99',1,850]]);
+const products=rows(['event_id','sku','name','segment','participants','orders','revenue'],[['cd_01','coins_550','550','active',500,1,500],['cd_01','coins_550','550','returning',500,1,500],['cd_02','coins_550','550','active',750,1,425],['cd_02','coins_550','550','returning',750,1,425]]);
 const mix=rows(['event_id','segment','participants','payers','revenue'],[['cd_01','active',500,50,500],['cd_01','returning',500,50,500],['cd_02','active',750,45,425],['cd_02','returning',750,45,425]]);
 const offers=rows(['event_id','sku','name','price_usd','contents'],[['cd_01','coins_550','550','4.99','550 PokéCoins'],['cd_02','coins_550','550','4.99','550 PokéCoins']]);
 const answers:[string,any[]][]=[['COUNT(*) AS participants FROM game_telemetry.event_participation WHERE',overview],['payments.payment_attempts a ON a.order_id',healthy],

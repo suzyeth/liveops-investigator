@@ -104,8 +104,9 @@ export function assess(m:Record<string,any>){
   dollars:pay?.failing?.length?lost:0,
   evidence:[pay&&'payment_by_provider',lost&&'payment_loss',ver?.suspect&&'payment_by_version',err&&'error_codes',rel&&'release_notes'].filter(Boolean) as string[]};
  const offer={id:'offer',label:'A changed offer lost buyers',surfacedBy:'offer_changes',
-  status:!offers?'not checked':!offers.relevant.length?'not supported':conv?.everywhere?'supported, and not explained by the player mix':'supported',
-  dollars:offers?.relevant?.length?offerGap:0,
+  // A changed offer that fell short is only a lead if fewer players bought it in every segment, beyond noise.
+  status:!offers?'not checked':!offers.relevant.length||!conv?.everywhere?'not supported':'supported, and not explained by the player mix',
+  dollars:offers?.relevant?.length&&conv?.everywhere?offerGap:0,
   evidence:[products&&'revenue_by_product',offers&&'offer_changes',conv&&'product_conversion'].filter(Boolean) as string[]};
  const players={id:'mix',label:'The event drew players who spend less',surfacedBy:'segment_mix',
   status:!mix?'not checked':mix.contributes?'contributes':'not supported',dollars:mix?.contributes?-mix.mixDollars:0,evidence:mix?['segment_mix']:[]};
@@ -140,14 +141,13 @@ function finding(m:Record<string,any>,h:any[]){
    const removed=items(x.contentsBefore).filter(i=>!items(x.contentsAfter).includes(i));
    return removed.length?`${x.name} no longer includes ${removed.map(i=>`“${i}”`).join(' or ')}`:`${x.name} changed its contents`;
   };
-  out.push(`About ${usd(h[1].dollars)} (${share(h[1].dollars)}) is the changed offer: ${c.map(describe).join(', and ')}`+
-   (m.product_conversion?.everywhere?`; fewer players bought ${c.length>1?'them':'it'} in every segment with enough buyers to compare`:'')+'.');
+  out.push(`About ${usd(h[1].dollars)} (${share(h[1].dollars)}) is the changed offer: ${c.map(describe).join(', and ')}; fewer players bought ${c.length>1?'them':'it'} in every segment with enough buyers to compare.`);
  }
  if(h[2].status==='contributes')out.push(`About ${usd(h[2].dollars)} (${share(h[2].dollars)}) is the shift toward players who spend less.`);
  const supported=h.some(x=>x.status.startsWith('supported'));
  if(!supported)out.push(`Payments held and no changed offer fell short${h[2].status==='contributes'?'; the player mix explains part of it':''}. None of the checked explanations accounts for most of the shortfall.`);
- if(a.overlap)out.push(`Together these come to ${usd(a.explained)}, more than the shortfall: other changes these checks do not explain added back about ${usd(a.explained-a.shortfall)}.`);
- else if(a.unexplained>=0.1*a.shortfall)out.push(`${usd(a.unexplained)} (${share(a.unexplained)}) is not explained by these checks${supported?'':'; the next step needs data this prototype does not have, such as how players received the event'}.`);
+ if(a.overlap)out.push(`These estimates add up to ${usd(a.explained-a.shortfall)} more than the shortfall: they overlap, and revenue also varies by a few thousand dollars between events, so the split is approximate.`);
+ else if(a.unexplained>=0.1*a.shortfall)out.push(`${usd(a.unexplained)} (${share(a.unexplained)}) is not explained by these checks${supported?'':'; it may be normal variation between events, or a cause that needs data this prototype does not have, such as how players received the event'}.`);
  out.push('The amounts are estimates; they show where to look next, not proof of cause.');
  return out.join(' ');
 }

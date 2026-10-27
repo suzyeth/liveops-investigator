@@ -18,7 +18,7 @@ export const COIN_PACKS=[
  {sku:'coins_14500',coins:14500,price_usd:99.99}
 ];
 const ALL='app_store,google_play,web_store';
-// Offer history: Community Day 2 adds an Incubator to the box (a change that does not hurt sales);
+// Offer history: Community Day 2 adds an Incubator to the box (a change that does not affect sales);
 // from Community Day 4 the ticket costs US$4.99 and the box no longer contains the ticket.
 const BOX:Record<string,string>={cd_01:'Special Research ticket, 3 Rare Candy',cd_02:'Special Research ticket, 3 Rare Candy, 1 Incubator',cd_03:'Special Research ticket, 3 Rare Candy, 1 Incubator',
  cd_04:'3 Rare Candy, 1 Incubator',cd_05:'3 Rare Candy, 1 Incubator'};

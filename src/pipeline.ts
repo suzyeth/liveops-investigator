@@ -54,11 +54,11 @@ export async function runInvestigation(emit:Emit){
   const recalled=memory.query(RECALL,{threshold:0.1,topN:5}).memories.map(m=>m.memory).filter(m=>m.tags.includes('lesson'));
   const usable=recalled.filter(m=>!m.tags.includes('review')&&m.confidence>=TRUSTED);
   const lessons:Lesson[]=usable.map(m=>({id:m.id,lead:(m.tags.find(t=>t.startsWith('lead:'))??'').slice(5),content:m.content})).filter(l=>l.lead);
-  emit({type:'step',caseId:c.id,step:'recall',title:'Recall lessons (H-MEM)',status:'done',log:`[H-MEM] ${lessons.length} lesson(s) recalled${lessons.length?`: start with ${lessons[0].lead}`:''}`});
+  emit({type:'step',caseId:c.id,step:'recall',title:'Recall lessons (H-MEM)',status:'done',log:`[H-MEM] ${lessons.length} lesson(s) recalled${lessons.length?`; leads to try first, when open: ${lessons.map(l=>l.lead).join(', ')}`:''}`});
   const out=await investigate(c,{query,choose,lessons,emit});
   let stored=null;
   if(out.lead){
-   const content=`${RECALL}: in ${c.id} the main explanation, "${out.hypotheses.find(h=>h.id===out.lead)!.label}", first appeared in ${out.leadProbe}. New incidents must be rechecked against fresh data.`;
+   const content=`${RECALL}: in ${c.id} the largest supported cause, "${out.hypotheses.find(h=>h.id===out.lead)!.label}", first appeared in ${out.leadProbe}. New incidents must be rechecked against fresh data.`;
    const record=memory.add({content,source:`liveops:${c.id}:reports/${run}.json`,type:'factual',layer:'working',confidence:1,tags:['lesson',`lead:${out.leadProbe}`,`case:${c.id}`],
     provenance:{origin:'document',learnedAt:Date.now(),label:'Zetaris evidence from the investigation steps',refs:[`reports/${run}.json`]}});
    const persisted=new HMEM({persistDir:dir}).query(RECALL,{threshold:0.1,topN:10}).memories.some(m=>m.memory.id===record.id);

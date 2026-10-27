@@ -19,7 +19,6 @@ export const usd=(x:number)=>`${x<0?'-':''}$${Math.round(Math.abs(x)).toLocaleSt
 const signed=(x:number)=>`${x>=0?'+':'-'}$${Math.round(Math.abs(x)).toLocaleString('en-US')}`;
 const cents=(x:number)=>`$${x.toFixed(2)}`;
 const change=(b:number,a:number)=>b?`${a>=b?'+':''}${Math.round((a-b)/b*100)}%`:'n/a';
-const CANCELS=`('USER_CANCELED', 'SKErrorPaymentCancelled', 'checkout_abandoned')`;
 const PLATFORM:Record<string,string>={google_play:'android',app_store:'ios'};
 function byEvent(rows:any[],c:Ctx,key:string){
  const keys=[...new Set(rows.map(r=>String(r[key])))];
@@ -30,6 +29,17 @@ function utc(v:unknown){
  const s=String(v).trim(),t=Date.parse(/[zZ]|[+-]\d\d:?\d\d$/.test(s)?s.replace(' ','T'):s.replace(' ','T').replace(/\.\d+$/,'')+'Z');
  if(!Number.isFinite(t))throw Error(`Invalid timestamp ${s}`);
  return t;
+}
+
+// A product falls short when it missed its turnout- and mix-adjusted expectation by over 15% and US$300.
+function productResult(items:any[],prior:Record<string,any>):Result{
+ items.sort((x,y)=>x.gap-y.gap);
+ const ov=prior.overview,total=(k:'before'|'after')=>Math.round(items.reduce((s,x)=>s+x[k],0)*100)/100;
+ const checks=ov?[{label:'Product revenue adds up to the overview (both events)',ok:Math.abs(total('before')-ov.before.revenue)<0.01&&Math.abs(total('after')-ov.after.revenue)<0.01}]:[];
+ const short=items.filter(x=>x.expected>0&&-x.gap>Math.max(300,0.15*x.expected));
+ return {summary:short.length?`Furthest below expectation (earlier revenue per participant in each segment, times the later turnout): ${short.slice(0,3).map(x=>`${x.name} ${usd(x.after)} against ${usd(x.expected)} expected`).join('; ')}.`:'No product fell more than 15% short of its expected revenue.',
+  metrics:{items,losers:short.map(x=>x.sku)},checks,
+  next:short.length?[{probe:'offer_changes',params:{},reason:`${short.length} product(s) fell short: check whether their offer changed.`}]:[]};
 }
 
 export const PROBES:Record<string,Probe>={
@@ -60,22 +70,27 @@ ORDER BY p.event_id`,
   }},
 
  revenue_by_product:{id:'revenue_by_product',title:'Revenue by product',question:'Which products fell short of the turnout?',sources:['game_telemetry','liveops'],
-  sql:c=>`SELECT o.event_id, o.sku, f.name, f.kind, f.price_usd, COUNT(*) AS orders, SUM(o.price_usd) AS revenue
-FROM game_telemetry.store_orders o JOIN liveops.offers f ON f.event_id = o.event_id AND f.sku = o.sku
+  sql:c=>`SELECT o.event_id, o.sku, f.name, e.segment, s.participants, COUNT(*) AS orders, SUM(o.price_usd) AS revenue
+FROM game_telemetry.store_orders o
+JOIN liveops.offers f ON f.event_id = o.event_id AND f.sku = o.sku
+JOIN game_telemetry.event_participation e ON e.event_id = o.event_id AND e.player_id = o.player_id
+JOIN (SELECT event_id, segment, COUNT(*) AS participants FROM game_telemetry.event_participation
+      WHERE event_id IN ${events(c)} GROUP BY event_id, segment) s ON s.event_id = o.event_id AND s.segment = e.segment
 WHERE o.status = 'completed' AND o.event_id IN ${events(c)}
-GROUP BY o.event_id, o.sku, f.name, f.kind, f.price_usd ORDER BY o.sku, o.event_id`,
+GROUP BY o.event_id, o.sku, f.name, e.segment, s.participants ORDER BY o.sku, o.event_id, e.segment`,
   analyze:(rows,c,_p,prior)=>{
-   const ov=prior.overview,growth=ov?ov.after.participants/ov.before.participants:1;
-   const items=byEvent(rows,c,'sku').map(({key,before,after})=>({sku:key,name:String((after??before).name),before:before?n(before.revenue,'product revenue'):0,after:after?n(after.revenue,'product revenue'):0}))
-    .map(x=>({...x,expected:x.before*growth,gap:x.after-x.before*growth}));
-   items.sort((x,y)=>x.gap-y.gap);
-   const total=(k:'before'|'after')=>Math.round(items.reduce((s,x)=>s+x[k],0)*100)/100;
-   const checks=ov?[{label:'Product revenue adds up to the overview (both events)',ok:Math.abs(total('before')-ov.before.revenue)<0.01&&Math.abs(total('after')-ov.after.revenue)<0.01}]:[];
-   // A product falls short when it missed its turnout-scaled expectation by over 15% and US$300.
-   const short=items.filter(x=>x.expected>0&&-x.gap>Math.max(300,0.15*x.expected));
-   return {summary:short.length?`Furthest below expectation (earlier revenue scaled by turnout): ${short.slice(0,3).map(x=>`${x.name} ${usd(x.after)} against ${usd(x.expected)} expected`).join('; ')}.`:'No product fell more than 15% short of its turnout-scaled revenue.',
-    metrics:{items,losers:short.map(x=>x.sku),growth},checks,
-    next:short.length?[{probe:'offer_changes',params:{},reason:`${short.length} product(s) fell short: check whether their offer changed.`}]:[]};
+   // Expected revenue per product: each segment's earlier revenue per participant times its later turnout,
+   // so a product is only "short" beyond what the change in turnout and player mix explains.
+   const parts:Record<string,Record<string,number>>={};
+   for(const r of rows)(parts[r.event_id]??={})[String(r.segment)]=n(r.participants,'participants');
+   const skus=[...new Set(rows.map(r=>String(r.sku)))];
+   const items=skus.map(sku=>{
+    const of=(id:string)=>rows.filter(r=>r.sku===sku&&r.event_id===id);
+    const before=of(c.before).reduce((s,r)=>s+n(r.revenue,'product revenue'),0),after=of(c.after).reduce((s,r)=>s+n(r.revenue,'product revenue'),0);
+    const expected=of(c.before).reduce((s,r)=>s+n(r.revenue,'product revenue')/n(r.participants,'participants')*(parts[c.after]?.[String(r.segment)]??0),0);
+    return {sku,name:String(rows.find(r=>r.sku===sku).name),before,after,expected,gap:after-expected};
+   });
+   return productResult(items,prior);
   }},
 
  payment_by_provider:{id:'payment_by_provider',title:'Order completion by store',question:'Are purchases failing, and in which store?',sources:['game_telemetry','payments'],
@@ -108,8 +123,7 @@ WHERE o.event_id IN ${events(c)} GROUP BY o.event_id, o.channel ORDER BY o.chann
   SUM(CASE WHEN o.status = 'completed' THEN o.price_usd ELSE 0 END) AS completed_value
 FROM game_telemetry.store_orders o
 JOIN liveops.offers f ON f.event_id = o.event_id AND f.sku = o.sku
-JOIN (SELECT order_id, SUM(CASE WHEN response_code = 'OK' THEN 1 ELSE 0 END) AS ok_attempts,
-        SUM(CASE WHEN response_code IN ${CANCELS} THEN 1 ELSE 0 END) AS cancels
+JOIN (SELECT order_id, SUM(CASE WHEN response_code = 'OK' THEN 1 ELSE 0 END) AS ok_attempts
       FROM payments.payment_attempts GROUP BY order_id) x ON x.order_id = o.order_id
 WHERE o.channel = ${lit(p.provider)} AND o.event_id IN ${events(c)}
 GROUP BY o.event_id ORDER BY o.event_id`,
@@ -227,11 +241,10 @@ WHERE p.event_id IN ${events(c)} GROUP BY p.event_id, p.segment ORDER BY p.segme
 FROM game_telemetry.store_orders o JOIN game_telemetry.players pl ON pl.player_id = o.player_id
 WHERE o.status = 'completed' AND o.event_id IN ${events(c)} GROUP BY o.event_id, pl.country ORDER BY pl.country, o.event_id`,
   analyze:(rows,c,_p,prior)=>{
-   const gap=(prior.overview?.after.revenue??0)-(prior.overview?.before.revenue??0);
    const items=byEvent(rows,c,'country').map(({key,before,after})=>({country:key,before:before?n(before.revenue,'revenue'):0,after:after?n(after.revenue,'revenue'):0}))
     .map(x=>({...x,delta:x.after-x.before}));
    const fell=items.filter(x=>x.delta<0),worst=[...items].sort((x,y)=>x.delta-y.delta).slice(0,3);
-   return {summary:`Revenue fell in ${fell.length} of ${items.length} countries. Largest changes: ${worst.map(x=>`${x.country} ${signed(x.delta)}${gap<0?` (${Math.round(x.delta/gap*100)}% of the change)`:''}`).join(', ')}. Country revenue moves a lot by chance between events, so a single country is weak evidence on its own.`,
+   return {summary:`Revenue fell in ${fell.length} of ${items.length} countries and rose in the rest. Largest drops: ${worst.map(x=>`${x.country} ${signed(x.delta)}`).join(', ')}. Country revenue moves a lot by chance between events, so a single country is weak evidence on its own.`,
     metrics:{items,fell:fell.length},checks:[],next:[]};
   }}
 };

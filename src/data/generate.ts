@@ -40,8 +40,8 @@ const P_BOX:Record<string,number>={active:0.09,returning:0.045,new:0.02}; // Web
 const COIN_BUYER:Record<string,number>={active:0.05,returning:0.012,new:0.01}; // chance of buying coins at all, scaled by spend
 // The US$4.99 ticket (Community Day 4 onward): price sensitivity differs by segment.
 const TICKET_PRICE_FACTOR:Record<string,number>={active:0.3,returning:0.16,new:0.12};
-// Box contents: an added Incubator helps a little; losing the ticket hurts.
-const BOX_FACTOR:Record<string,number>={cd_02:1.1,cd_03:1.1,cd_04:0.35,cd_05:0.35};
+// Box contents: the added Incubator changes nothing; losing the ticket hurts.
+const BOX_FACTOR:Record<string,number>={cd_04:0.35,cd_05:0.35};
 // Community Day 5: players spend less on everything, for a reason none of the sources records
 // (for example a featured Pokémon that players care less about). The agent has no check for it.
 const DEMAND:Record<string,number>={cd_05:0.72};
@@ -57,7 +57,8 @@ const FAIL_CODES:Record<string,Weighted<string>>={
 const CANCEL=new Set(['USER_CANCELED','SKErrorPaymentCancelled','checkout_abandoned']);
 const RETRY=0.4,SWITCH_TO_WEB=0.25;
 
-export function generate(seed=20260417){
+// The default seed is one of 60 tried (49 qualified) where revenue falls in all three cases.
+export function generate(seed=20260438){
  const r=rng(seed);
  const mk=(i:number,firstSeen:number,lastActive:number)=>{
   const country=pick(r,COUNTRIES),platform=r()<IOS_SHARE[country]?'ios':'android';

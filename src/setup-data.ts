@@ -53,12 +53,14 @@ async function load(password:string){
  }
 }
 
+// Descriptions earlier versions of this script registered, so an upgrade does not need --force.
+const PREVIOUS:Record<string,string[]>={payments:['Payment gateway log - one row per payment attempt']};
 async function register(password:string){
  // Only replace a datasource this script created (same description); never drop someone else's.
  const known=(await zetarisCommand('SHOW DATASOURCES')).rows.map(r=>({name:String(r.name).toLowerCase(),description:String(r.description??'')}));
  for(const s of SOURCES){
   const existing=known.find(k=>k.name===s.datasource);
-  if(existing&&existing.description!==s.description&&!process.argv.includes('--force'))
+  if(existing&&existing.description!==s.description&&!(PREVIOUS[s.datasource]??[]).includes(existing.description)&&!process.argv.includes('--force'))
    throw Error(`Zetaris already has a datasource named ${s.datasource} that this script did not create; rerun with --force to replace it`);
   if(existing)await zetarisCommand(`DROP DATASOURCE ${s.datasource}`);
   await zetarisCommand(`CREATE DATASOURCE ${s.datasource} DESCRIBE BY ${quote(s.description)} OPTIONS (jdbcdriver 'org.postgresql.Driver', jdbcurl 'jdbc:postgresql://${HOST}:5432/${s.database}', username '${READER}', password ${quote(password)}, fetchsize '5000')`);
