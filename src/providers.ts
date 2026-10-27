@@ -37,7 +37,7 @@ export async function nightshiftChat(prompt:string) {
   if(typeof content!=='string'||!content.trim()) throw new Error('No model text returned');
   return {model:result.model,content};
 }
-export async function zetarisQuery(sql:string) {
+export async function zetarisQuery(sql:string,pageLimit=1000) {
   const {ZETARIS_BASE_URL:base,ZETARIS_USERNAME:username,ZETARIS_PASSWORD:password}=process.env;
   let org=process.env.ZETARIS_ORG_ID, key=process.env.ZETARIS_API_KEY;
   if(!base) throw new Error('missing_config: ZETARIS_BASE_URL');
@@ -48,5 +48,20 @@ export async function zetarisQuery(sql:string) {
     org=String(login.orgId??org??'');
   }
   if(!key||!org) throw new Error('missing_config_or_login: Zetaris token and organization required');
-  return jsonRequest(`${u.origin}/api/proxy/query/sql/start`,{method:'POST',headers:{Authorization:`Bearer ${key}`,'X-Org-ID':org,'X-Request-ID':crypto.randomUUID(),'Content-Type':'application/json'},body:JSON.stringify({select:sql,pageLimit:10})},30000);
+  return jsonRequest(`${u.origin}/api/proxy/query/sql/start`,{method:'POST',headers:{Authorization:`Bearer ${key}`,'X-Org-ID':org,'X-Request-ID':crypto.randomUUID(),'Content-Type':'application/json'},body:JSON.stringify({select:sql,pageLimit})},30000);
+}
+// Zetaris SQL editor route: accepts platform commands (CREATE DATASOURCE, REGISTER ...) as well as
+// SELECT. Returns {headers, data} with rows as arrays; rows() turns that into objects.
+export async function zetarisCommand(sql:string,limit=1000) {
+  const {ZETARIS_BASE_URL:base,ZETARIS_USERNAME:username,ZETARIS_PASSWORD:password}=process.env;
+  if(!base||!username||!password) throw new Error('missing_config: ZETARIS_BASE_URL, ZETARIS_USERNAME and ZETARIS_PASSWORD');
+  const u=new URL(base);
+  const login=await jsonRequest(`${u.origin}/api/auth/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,password})},30000);
+  const key=login.idToken||login.token||login.accessToken,org=String(login.orgId??process.env.ZETARIS_ORG_ID??'');
+  const response=await fetch(`${u.origin}/api/proxy/sql-editor/sqls/run-query`,{method:'POST',signal:AbortSignal.timeout(120000),
+    headers:{Authorization:`Bearer ${key}`,'X-Org-ID':org,'X-Request-ID':crypto.randomUUID(),'Content-Type':'application/json'},body:JSON.stringify({sql,limit})});
+  const text=await response.text();
+  if(!response.ok) throw new Error(`Zetaris HTTP ${response.status}: ${text.slice(0,300)}`);
+  const result=JSON.parse(text);
+  return {headers:result.headers as string[],rows:(result.data as any[][]).map(r=>Object.fromEntries((result.headers as string[]).map((h,i)=>[h,r[i]]))),total:Number(result.total),ms:Number(result.timeUsed)};
 }

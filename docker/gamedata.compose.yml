@@ -1,0 +1,19 @@
+# Local Postgres that holds the synthetic game data sources. Joins the Zetaris network so the
+# Zetaris driver can reach it as liveops-gamedata:5432; the host port is bound to 127.0.0.1 only.
+name: liveops-gamedata
+services:
+  gamedata:
+    image: postgres:16-alpine
+    container_name: liveops-gamedata
+    environment:
+      POSTGRES_USER: liveops
+      POSTGRES_PASSWORD: ${GAMEDATA_PG_PASSWORD:?Set GAMEDATA_PG_PASSWORD in .env.local}
+      POSTGRES_DB: postgres
+    ports:
+      - "127.0.0.1:55432:5432"
+    networks: [zetaris]
+    restart: unless-stopped
+networks:
+  zetaris:
+    external: true
+    name: liveops-zetaris_default
