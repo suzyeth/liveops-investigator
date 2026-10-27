@@ -21,12 +21,13 @@ try {
   const result=await zetarisQuery('SELECT 1 AS one');
   assert.equal(result.records?.length,1);
   assert.equal(Number(result.records[0].one),1);
-  const metrics=await zetarisQuery("SELECT period, SUM(revenue) AS revenue, SUM(payers) AS payers, SUM(participants) AS participants FROM (SELECT 'before' AS period, 1000 AS revenue, 100 AS payers, 1000 AS participants UNION ALL SELECT 'after' AS period, 900 AS revenue, 90 AS payers, 1500 AS participants) demo GROUP BY period ORDER BY period");
-  assert.equal(metrics.records?.length,2);
-  const after=metrics.records.find((r:any)=>r.period==='after');
-  assert.equal(Number(after?.revenue),900);
-  assert.equal(Number(after?.payers)/Number(after?.participants),0.06);
-  results.components.zetaris={status:'passed',checks:['authenticated SELECT 1 AS one returns 1','synthetic LiveOps aggregation returns revenue 900 and conversion 6%'],records:metrics.records,data:'synthetic SQL literals, not real player data'};
+  // The three datasources from `npm run data:setup` must be registered and joinable in one statement.
+  const joined=await zetarisQuery(`SELECT COUNT(*) AS orders, COUNT(DISTINCT a.order_id) AS attempted, COUNT(DISTINCT f.sku) AS skus
+FROM game_telemetry.store_orders o JOIN payments.payment_attempts a ON a.order_id = o.order_id
+JOIN liveops.offers f ON f.event_id = o.event_id AND f.sku = o.sku`);
+  const row=joined.records?.[0];
+  assert.ok(Number(row?.orders)>0&&Number(row?.attempted)>0&&Number(row?.skus)>0,'the three datasources are not registered; run npm run data:setup');
+  results.components.zetaris={status:'passed',checks:['authenticated SELECT 1 AS one returns 1','one statement joins game_telemetry, payments and liveops'],records:joined.records,data:'synthetic generated data'};
 }catch(e){results.components.zetaris={status:'blocked',reason:(e as Error).message};}
 const base=process.env.NIGHTSHIFT_BASE_URL||'http://127.0.0.1:8088/v1';
 try {
